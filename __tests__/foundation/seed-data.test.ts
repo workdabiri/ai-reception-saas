@@ -37,6 +37,19 @@ describe('Seed file structure', () => {
   it('calls $disconnect in finally block', () => {
     expect(seedContent).toContain('$disconnect');
   });
+
+  it('uses PrismaPg adapter (not raw PrismaClient())', () => {
+    expect(seedContent).toContain("import { PrismaPg } from '@prisma/adapter-pg'");
+    expect(seedContent).toContain('new PrismaPg(');
+    expect(seedContent).toContain('PrismaClient({ adapter');
+    // Must NOT have raw new PrismaClient() without adapter
+    expect(seedContent).not.toMatch(/new PrismaClient\(\s*\)/);
+  });
+
+  it('checks DATABASE_URL before initialization', () => {
+    expect(seedContent).toContain('DATABASE_URL');
+    expect(seedContent).toContain('DATABASE_URL is required');
+  });
 });
 
 // ===========================================================================

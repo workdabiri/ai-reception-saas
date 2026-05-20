@@ -4,12 +4,22 @@
 // Seeds 5 categories and 5 pilot services per L1-v1 source catalog.
 // Uses upsert with slug as key for idempotency.
 //
+// Uses Prisma 7 driver adapter pattern (PrismaPg) — matches src/lib/prisma.ts.
+// Cannot import from @/ paths since seed runs via `npx tsx` outside Next.js.
+//
 // Category taxonomy: 02_PILOT_SERVICE_CATALOG / 11_FULL_SERVICE_CATALOG_REFERENCE
 // ===========================================================================
 
 import { PrismaClient } from '@prisma/client';
+import { PrismaPg } from '@prisma/adapter-pg';
 
-const prisma = new PrismaClient();
+const databaseUrl = process.env.DATABASE_URL;
+if (!databaseUrl) {
+  throw new Error('DATABASE_URL is required to run seed.');
+}
+
+const adapter = new PrismaPg(databaseUrl);
+const prisma = new PrismaClient({ adapter });
 
 async function main() {
   console.log('🌱 Seeding service catalog...');
