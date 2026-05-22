@@ -61,6 +61,21 @@ enum AuditResult {
   FAILED
 }
 
+enum CustomerStatus {
+  ACTIVE
+  ARCHIVED
+}
+
+enum ContactMethodType {
+  EMAIL
+  PHONE
+  WHATSAPP
+  INSTAGRAM
+  TELEGRAM
+  WEBSITE_CHAT
+  CUSTOM
+}
+
 // ===========================================================================
 // Models — Identity Domain
 // ===========================================================================
@@ -120,9 +135,11 @@ model Business {
   createdAt       DateTime       @default(now()) @map("created_at")
   updatedAt       DateTime       @updatedAt @map("updated_at")
 
-  createdByUser User                 @relation("BusinessCreator", fields: [createdByUserId], references: [id])
-  memberships   BusinessMembership[]
-  auditEvents   AuditEvent[]
+  createdByUser          User                    @relation("BusinessCreator", fields: [createdByUserId], references: [id])
+  memberships            BusinessMembership[]
+  auditEvents            AuditEvent[]
+  customers              Customer[]
+  customerContactMethods CustomerContactMethod[]
 
   @@index([status])
   @@index([createdByUserId])
@@ -214,4 +231,49 @@ model AuditEvent {
   @@index([targetType, targetId])
   @@index([result])
   @@map("audit_events")
+}
+
+// ===========================================================================
+// Models — CRM Domain
+// ===========================================================================
+
+model Customer {
+  id          String         @id @default(uuid()) @db.Uuid
+  businessId  String         @map("business_id") @db.Uuid
+  displayName String         @map("display_name")
+  status      CustomerStatus @default(ACTIVE)
+  locale      String?
+  notes       String?        @db.Text
+  metadata    Json?
+  createdAt   DateTime       @default(now()) @map("created_at")
+  updatedAt   DateTime       @updatedAt @map("updated_at")
+
+  business       Business                @relation(fields: [businessId], references: [id])
+  contactMethods CustomerContactMethod[]
+
+  @@index([businessId, status])
+  @@index([businessId, createdAt])
+  @@index([businessId, displayName])
+  @@map("customers")
+}
+
+model CustomerContactMethod {
+  id         String            @id @default(uuid()) @db.Uuid
+  customerId String            @map("customer_id") @db.Uuid
+  businessId String            @map("business_id") @db.Uuid
+  type       ContactMethodType
+  value      String
+  label      String?
+  isPrimary  Boolean           @default(false) @map("is_primary")
+  verified   Boolean           @default(false)
+  createdAt  DateTime          @default(now()) @map("created_at")
+  updatedAt  DateTime          @updatedAt @map("updated_at")
+
+  customer Customer @relation(fields: [customerId], references: [id], onDelete: Cascade)
+  business Business @relation(fields: [businessId], references: [id])
+
+  @@unique([businessId, type, value])
+  @@index([customerId])
+  @@index([businessId, type])
+  @@map("customer_contact_methods")
 }

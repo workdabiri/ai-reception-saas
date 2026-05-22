@@ -21,11 +21,16 @@ import {
   createAuditRepository,
   type AuditRepositoryDb,
 } from '@/domains/audit/repository';
+import {
+  createCrmRepository,
+  type CrmRepositoryDb,
+} from '@/domains/crm/repository';
 
 import { createIdentityService } from '@/domains/identity/implementation';
 import { createTenancyService } from '@/domains/tenancy/implementation';
 import { createAuthzService } from '@/domains/authz/implementation';
 import { createAuditService } from '@/domains/audit/implementation';
+import { createCrmService } from '@/domains/crm/implementation';
 
 import type {
   ApiDependencies,
@@ -66,6 +71,16 @@ function toAuditRepositoryDb(
   };
 }
 
+/** Extracts only the delegates required by CrmRepositoryDb */
+function toCrmRepositoryDb(
+  prisma: PrismaCompatibleClient,
+): CrmRepositoryDb {
+  return {
+    customer: prisma.customer,
+    customerContactMethod: prisma.customerContactMethod,
+  };
+}
+
 // ---------------------------------------------------------------------------
 // Factory
 // ---------------------------------------------------------------------------
@@ -92,6 +107,9 @@ export function createApiDependencies(
   const auditRepository = createAuditRepository(
     toAuditRepositoryDb(prisma),
   );
+  const crmRepository = createCrmRepository(
+    toCrmRepositoryDb(prisma),
+  );
 
   // Wire services
   const identityService = createIdentityService({
@@ -104,18 +122,23 @@ export function createApiDependencies(
   const auditService = createAuditService({
     repository: auditRepository,
   });
+  const crmService = createCrmService({
+    repository: crmRepository,
+  });
 
   return {
     repositories: {
       identity: identityRepository,
       tenancy: tenancyRepository,
       audit: auditRepository,
+      crm: crmRepository,
     },
     services: {
       identity: identityService,
       tenancy: tenancyService,
       authz: authzService,
       audit: auditService,
+      crm: crmService,
     },
   };
 }

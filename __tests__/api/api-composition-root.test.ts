@@ -146,12 +146,79 @@ function createMockPrisma(): PrismaCompatibleClient {
     findMany: () => Promise.resolve([]),
   };
 
+  const customerDelegate: PrismaCompatibleClient['customer'] = {
+    create: () =>
+      Promise.resolve({
+        ...stubRecord,
+        businessId: 'mock',
+        displayName: 'Mock Customer',
+        status: 'ACTIVE' as const,
+        locale: null,
+        notes: null,
+        metadata: null,
+        contactMethods: [],
+      }),
+    update: () =>
+      Promise.resolve({
+        ...stubRecord,
+        businessId: 'mock',
+        displayName: 'Mock Customer',
+        status: 'ACTIVE' as const,
+        locale: null,
+        notes: null,
+        metadata: null,
+        contactMethods: [],
+      }),
+    findUnique: () => Promise.resolve(null),
+    findMany: () => Promise.resolve([]),
+  };
+
+  const customerContactMethodDelegate: PrismaCompatibleClient['customerContactMethod'] = {
+    create: () =>
+      Promise.resolve({
+        ...stubRecord,
+        customerId: 'mock',
+        businessId: 'mock',
+        type: 'EMAIL' as const,
+        value: 'mock@test.com',
+        label: null,
+        isPrimary: false,
+        verified: false,
+      }),
+    update: () =>
+      Promise.resolve({
+        ...stubRecord,
+        customerId: 'mock',
+        businessId: 'mock',
+        type: 'EMAIL' as const,
+        value: 'mock@test.com',
+        label: null,
+        isPrimary: false,
+        verified: false,
+      }),
+    delete: () =>
+      Promise.resolve({
+        ...stubRecord,
+        customerId: 'mock',
+        businessId: 'mock',
+        type: 'EMAIL' as const,
+        value: 'mock@test.com',
+        label: null,
+        isPrimary: false,
+        verified: false,
+      }),
+    findUnique: () => Promise.resolve(null),
+    findMany: () => Promise.resolve([]),
+  };
+
   return {
     user: userDelegate,
     session: sessionDelegate,
     business: businessDelegate,
     businessMembership: membershipDelegate,
     auditEvent: auditEventDelegate,
+    customer: customerDelegate,
+    customerContactMethod: customerContactMethodDelegate,
   };
 }
 
@@ -171,12 +238,14 @@ describe('createApiDependencies', () => {
         expect(deps.repositories.identity).toBeDefined();
         expect(deps.repositories.tenancy).toBeDefined();
         expect(deps.repositories.audit).toBeDefined();
+        expect(deps.repositories.crm).toBeDefined();
 
         // Services
         expect(deps.services.identity).toBeDefined();
         expect(deps.services.tenancy).toBeDefined();
         expect(deps.services.authz).toBeDefined();
         expect(deps.services.audit).toBeDefined();
+        expect(deps.services.crm).toBeDefined();
       },
     );
   });
@@ -213,6 +282,20 @@ describe('createApiDependencies', () => {
         expect(typeof deps.repositories.audit.listAuditEvents).toBe(
           'function',
         );
+
+        // CRM repository methods
+        expect(typeof deps.repositories.crm.createCustomer).toBe(
+          'function',
+        );
+        expect(typeof deps.repositories.crm.findCustomerById).toBe(
+          'function',
+        );
+        expect(typeof deps.repositories.crm.listCustomers).toBe(
+          'function',
+        );
+        expect(typeof deps.repositories.crm.findByContactMethod).toBe(
+          'function',
+        );
       },
     );
   });
@@ -246,6 +329,14 @@ describe('createApiDependencies', () => {
         // Audit service methods
         expect(typeof deps.services.audit.createAuditEvent).toBe('function');
         expect(typeof deps.services.audit.findAuditEventById).toBe('function');
+
+        // CRM service methods
+        expect(typeof deps.services.crm.createCustomer).toBe('function');
+        expect(typeof deps.services.crm.findCustomerById).toBe('function');
+        expect(typeof deps.services.crm.listCustomers).toBe('function');
+        expect(typeof deps.services.crm.findOrCreateByContact).toBe('function');
+        expect(typeof deps.services.crm.addContactMethod).toBe('function');
+        expect(typeof deps.services.crm.removeContactMethod).toBe('function');
       },
     );
   });

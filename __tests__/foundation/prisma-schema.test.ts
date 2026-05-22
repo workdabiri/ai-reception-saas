@@ -138,7 +138,6 @@ describe('Prisma Schema — Forbidden Models', () => {
   });
 
   it.each([
-    'Customer',
     'Conversation',
     'Message',
     'Channel',
@@ -371,5 +370,94 @@ describe('Prisma Schema — Auth Provider Persistence (TASK-0031)', () => {
     expect(body).toContain('ipAddress');
     expect(body).toContain('userAgent');
     expect(body).toContain('@@map("sessions")');
+  });
+});
+
+// ---------------------------------------------------------------------------
+// CRM Domain model tests (R1)
+// ---------------------------------------------------------------------------
+
+describe('Prisma Schema — CRM Domain (R1)', () => {
+  it('defines CustomerStatus enum with ACTIVE, ARCHIVED', () => {
+    expect(enumExists('CustomerStatus')).toBe(true);
+    expect(enumHasValue('CustomerStatus', 'ACTIVE')).toBe(true);
+    expect(enumHasValue('CustomerStatus', 'ARCHIVED')).toBe(true);
+  });
+
+  it('defines ContactMethodType enum with all expected values', () => {
+    expect(enumExists('ContactMethodType')).toBe(true);
+    expect(enumHasValue('ContactMethodType', 'EMAIL')).toBe(true);
+    expect(enumHasValue('ContactMethodType', 'PHONE')).toBe(true);
+    expect(enumHasValue('ContactMethodType', 'WHATSAPP')).toBe(true);
+    expect(enumHasValue('ContactMethodType', 'INSTAGRAM')).toBe(true);
+    expect(enumHasValue('ContactMethodType', 'TELEGRAM')).toBe(true);
+    expect(enumHasValue('ContactMethodType', 'WEBSITE_CHAT')).toBe(true);
+    expect(enumHasValue('ContactMethodType', 'CUSTOM')).toBe(true);
+  });
+
+  it('defines Customer model', () => {
+    expect(modelExists('Customer')).toBe(true);
+  });
+
+  it('defines CustomerContactMethod model', () => {
+    expect(modelExists('CustomerContactMethod')).toBe(true);
+  });
+
+  it('Customer has required fields', () => {
+    const model = schema.match(/model\s+Customer\s*\{([\s\S]+?)\}/);
+    expect(model).not.toBeNull();
+    const body = model![1];
+    expect(body).toContain('businessId');
+    expect(body).toContain('displayName');
+    expect(body).toContain('status');
+    expect(body).toContain('notes');
+    expect(body).toContain('metadata');
+    expect(body).toContain('locale');
+  });
+
+  it('Customer maps to customers table', () => {
+    const model = schema.match(/model\s+Customer\s*\{([\s\S]+?)\}/);
+    expect(model).not.toBeNull();
+    expect(model![1]).toContain('@@map("customers")');
+  });
+
+  it('Customer has business scoping indexes', () => {
+    const model = schema.match(/model\s+Customer\s*\{([\s\S]+?)\}/);
+    expect(model).not.toBeNull();
+    expect(model![1]).toContain('@@index([businessId, status])');
+    expect(model![1]).toContain('@@index([businessId, createdAt])');
+    expect(model![1]).toContain('@@index([businessId, displayName])');
+  });
+
+  it('CustomerContactMethod has identity resolution unique constraint', () => {
+    expect(schema).toContain('@@unique([businessId, type, value])');
+  });
+
+  it('CustomerContactMethod maps to customer_contact_methods table', () => {
+    const model = schema.match(/model\s+CustomerContactMethod\s*\{([\s\S]+?)\}/);
+    expect(model).not.toBeNull();
+    expect(model![1]).toContain('@@map("customer_contact_methods")');
+  });
+
+  it('CustomerContactMethod has cascade delete from Customer', () => {
+    const model = schema.match(/model\s+CustomerContactMethod\s*\{([\s\S]+?)\}/);
+    expect(model).not.toBeNull();
+    expect(model![1]).toContain('onDelete: Cascade');
+  });
+
+  it('Customer does NOT contain forbidden concepts', () => {
+    const model = schema.match(/model\s+Customer\s*\{([\s\S]+?)\}/);
+    expect(model).not.toBeNull();
+    const body = model![1];
+    expect(body).not.toContain('serviceCategory');
+    expect(body).not.toContain('mandoub');
+    expect(body).not.toContain('order');
+  });
+
+  it('Business model has customers relation', () => {
+    const model = schema.match(/model\s+Business\s*\{([\s\S]+?)\}/);
+    expect(model).not.toBeNull();
+    expect(model![1]).toContain('customers');
+    expect(model![1]).toContain('Customer[]');
   });
 });

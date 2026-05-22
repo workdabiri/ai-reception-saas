@@ -8,15 +8,18 @@
 import type { IdentityRepository } from '@/domains/identity/repository';
 import type { TenancyRepository } from '@/domains/tenancy/repository';
 import type { AuditRepository } from '@/domains/audit/repository';
+import type { CrmRepository } from '@/domains/crm/repository';
 
 import type { IdentityService } from '@/domains/identity/service';
 import type { TenancyService } from '@/domains/tenancy/service';
 import type { AuthzService } from '@/domains/authz/service';
 import type { AuditService } from '@/domains/audit/service';
+import type { CrmService } from '@/domains/crm/service';
 
 import type { IdentityRepositoryDb } from '@/domains/identity/repository';
 import type { TenancyRepositoryDb } from '@/domains/tenancy/repository';
 import type { AuditRepositoryDb } from '@/domains/audit/repository';
+import type { CrmRepositoryDb } from '@/domains/crm/repository';
 
 // ---------------------------------------------------------------------------
 // Container types
@@ -27,6 +30,7 @@ export interface ApiRepositories {
   readonly identity: IdentityRepository;
   readonly tenancy: TenancyRepository;
   readonly audit: AuditRepository;
+  readonly crm: CrmRepository;
 }
 
 /** All services available to API handlers */
@@ -35,6 +39,7 @@ export interface ApiServices {
   readonly tenancy: TenancyService;
   readonly authz: AuthzService;
   readonly audit: AuditService;
+  readonly crm: CrmService;
 }
 
 /** Complete API dependency container */
@@ -54,7 +59,8 @@ export interface ApiDependencies {
 export interface PrismaCompatibleClient
   extends IdentityRepositoryDb,
     TenancyRepositoryDb,
-    AuditRepositoryDb {}
+    AuditRepositoryDb,
+    CrmRepositoryDb {}
 
 /** Options for creating the API dependency container */
 export interface ApiCompositionOptions {
