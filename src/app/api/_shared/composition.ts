@@ -25,12 +25,17 @@ import {
   createCrmRepository,
   type CrmRepositoryDb,
 } from '@/domains/crm/repository';
+import {
+  createConversationRepository,
+  type ConversationRepositoryDb,
+} from '@/domains/conversations/repository';
 
 import { createIdentityService } from '@/domains/identity/implementation';
 import { createTenancyService } from '@/domains/tenancy/implementation';
 import { createAuthzService } from '@/domains/authz/implementation';
 import { createAuditService } from '@/domains/audit/implementation';
 import { createCrmService } from '@/domains/crm/implementation';
+import { createConversationService } from '@/domains/conversations/implementation';
 
 import type {
   ApiDependencies,
@@ -81,6 +86,16 @@ function toCrmRepositoryDb(
   };
 }
 
+/** Extracts only the delegates required by ConversationRepositoryDb */
+function toConversationRepositoryDb(
+  prisma: PrismaCompatibleClient,
+): ConversationRepositoryDb {
+  return {
+    conversation: prisma.conversation,
+    message: prisma.message,
+  };
+}
+
 // ---------------------------------------------------------------------------
 // Factory
 // ---------------------------------------------------------------------------
@@ -110,6 +125,9 @@ export function createApiDependencies(
   const crmRepository = createCrmRepository(
     toCrmRepositoryDb(prisma),
   );
+  const conversationRepository = createConversationRepository(
+    toConversationRepositoryDb(prisma),
+  );
 
   // Wire services
   const identityService = createIdentityService({
@@ -125,6 +143,10 @@ export function createApiDependencies(
   const crmService = createCrmService({
     repository: crmRepository,
   });
+  const conversationService = createConversationService({
+    repository: conversationRepository,
+    audit: auditService,
+  });
 
   return {
     repositories: {
@@ -132,6 +154,7 @@ export function createApiDependencies(
       tenancy: tenancyRepository,
       audit: auditRepository,
       crm: crmRepository,
+      conversations: conversationRepository,
     },
     services: {
       identity: identityService,
@@ -139,6 +162,7 @@ export function createApiDependencies(
       authz: authzService,
       audit: auditService,
       crm: crmService,
+      conversations: conversationService,
     },
   };
 }

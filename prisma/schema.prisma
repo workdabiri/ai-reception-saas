@@ -3,7 +3,8 @@
 //
 // PostgreSQL datasource with Prisma Client generator.
 // Implements the tenant, identity, membership, session, audit
-// foundation (TASK-0005) and auth provider persistence (TASK-0031).
+// foundation (TASK-0005), auth provider persistence (TASK-0031),
+// CRM customer domain, and conversation + message domain (R2).
 //
 // NOTE: Prisma 7+ requires datasource URL to be configured in
 // prisma.config.ts, not in this schema file.
@@ -76,6 +77,51 @@ enum ContactMethodType {
   CUSTOM
 }
 
+enum ConversationStatus {
+  NEW
+  OPEN
+  ASSIGNED
+  WAITING_CUSTOMER
+  WAITING_OPERATOR
+  ESCALATED
+  RESOLVED
+}
+
+enum MessageDirection {
+  INBOUND
+  OUTBOUND
+  SYSTEM
+  INTERNAL
+}
+
+enum MessageSenderType {
+  CUSTOMER
+  OPERATOR
+  SYSTEM
+  AI_RECEPTIONIST
+}
+
+enum ChannelType {
+  INTERNAL
+  WEBSITE_CHAT
+}
+
+enum AiClassificationStatus {
+  NOT_REQUESTED
+  PENDING
+  READY
+  FAILED
+}
+
+enum AiDraftStatus {
+  NOT_REQUESTED
+  PENDING
+  READY
+  APPROVED
+  REJECTED
+  FAILED
+}
+
 // ===========================================================================
 // Models — Identity Domain
 // ===========================================================================
@@ -91,12 +137,14 @@ model User {
   createdAt     DateTime   @default(now()) @map("created_at")
   updatedAt     DateTime   @updatedAt @map("updated_at")
 
-  sessions           Session[]
-  memberships        BusinessMembership[]
-  createdBusinesses  Business[]           @relation("BusinessCreator")
-  invitedMemberships BusinessMembership[] @relation("MembershipInviter")
-  auditEvents        AuditEvent[]         @relation("AuditActor")
-  accounts           Account[]
+  sessions               Session[]
+  memberships            BusinessMembership[]
+  createdBusinesses      Business[]           @relation("BusinessCreator")
+  invitedMemberships     BusinessMembership[] @relation("MembershipInviter")
+  auditEvents            AuditEvent[]         @relation("AuditActor")
+  accounts               Account[]
+  assignedConversations  Conversation[]       @relation("ConversationAssignee")
+  sentMessages           Message[]            @relation("MessageSender")
 
   @@map("users")
 }
@@ -140,6 +188,8 @@ model Business {
   auditEvents            AuditEvent[]
   customers              Customer[]
   customerContactMethods CustomerContactMethod[]
+  conversations          Conversation[]
+  conversationMessages   Message[]
 
   @@index([status])
   @@index([createdByUserId])
@@ -250,6 +300,7 @@ model Customer {
 
   business       Business                @relation(fields: [businessId], references: [id])
   contactMethods CustomerContactMethod[]
+  conversations  Conversation[]
 
   @@index([businessId, status])
   @@index([businessId, createdAt])
@@ -276,4 +327,61 @@ model CustomerContactMethod {
   @@index([customerId])
   @@index([businessId, type])
   @@map("customer_contact_methods")
+}
+
+// ===========================================================================
+// Models — Conversations Domain (R2)
+// ===========================================================================
+
+model Conversation {
+  id                     String                 @id @default(uuid()) @db.Uuid
+  businessId             String                 @map("business_id") @db.Uuid
+  customerId             String?                @map("customer_id") @db.Uuid
+  channel                ChannelType            @default(INTERNAL)
+  status                 ConversationStatus     @default(NEW)
+  subject                String?
+  assignedUserId         String?                @map("assigned_user_id") @db.Uuid
+  aiClassificationStatus AiClassificationStatus @default(NOT_REQUESTED) @map("ai_classification_status")
+  aiDraftStatus          AiDraftStatus          @default(NOT_REQUESTED) @map("ai_draft_status")
+  channelMetadata        Json?                  @map("channel_metadata")
+  metadata               Json?
+  closedAt               DateTime?              @map("closed_at")
+  createdAt              DateTime               @default(now()) @map("created_at")
+  updatedAt              DateTime               @updatedAt @map("updated_at")
+
+  business     Business  @relation(fields: [businessId], references: [id])
+  customer     Customer? @relation(fields: [customerId], references: [id])
+  assignedUser User?     @relation("ConversationAssignee", fields: [assignedUserId], references: [id])
+  messages     Message[]
+
+  @@index([businessId, status])
+  @@index([businessId, createdAt])
+  @@index([businessId, assignedUserId])
+  @@index([customerId])
+  @@index([businessId, channel])
+  @@map("conversations")
+}
+
+model Message {
+  id               String            @id @default(uuid()) @db.Uuid
+  conversationId   String            @map("conversation_id") @db.Uuid
+  businessId       String            @map("business_id") @db.Uuid
+  direction        MessageDirection
+  senderType       MessageSenderType @map("sender_type")
+  senderUserId     String?           @map("sender_user_id") @db.Uuid
+  senderCustomerId String?           @map("sender_customer_id")
+  content          String            @db.Text
+  contentType      String            @default("text/plain") @map("content_type")
+  channelMetadata  Json?             @map("channel_metadata")
+  metadata         Json?
+  createdAt        DateTime          @default(now()) @map("created_at")
+
+  conversation Conversation @relation(fields: [conversationId], references: [id])
+  business     Business     @relation(fields: [businessId], references: [id])
+  senderUser   User?        @relation("MessageSender", fields: [senderUserId], references: [id])
+
+  @@index([conversationId, createdAt])
+  @@index([businessId, createdAt])
+  @@index([senderUserId])
+  @@map("messages")
 }

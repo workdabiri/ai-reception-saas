@@ -211,6 +211,61 @@ function createMockPrisma(): PrismaCompatibleClient {
     findMany: () => Promise.resolve([]),
   };
 
+  const conversationDelegate: PrismaCompatibleClient['conversation'] = {
+    create: () =>
+      Promise.resolve({
+        ...stubRecord,
+        businessId: 'mock',
+        customerId: null,
+        channel: 'INTERNAL' as const,
+        status: 'NEW' as const,
+        subject: null,
+        assignedUserId: null,
+        aiClassificationStatus: 'NOT_REQUESTED' as const,
+        aiDraftStatus: 'NOT_REQUESTED' as const,
+        channelMetadata: null,
+        metadata: null,
+        closedAt: null,
+      }),
+    update: () =>
+      Promise.resolve({
+        ...stubRecord,
+        businessId: 'mock',
+        customerId: null,
+        channel: 'INTERNAL' as const,
+        status: 'NEW' as const,
+        subject: null,
+        assignedUserId: null,
+        aiClassificationStatus: 'NOT_REQUESTED' as const,
+        aiDraftStatus: 'NOT_REQUESTED' as const,
+        channelMetadata: null,
+        metadata: null,
+        closedAt: null,
+      }),
+    findUnique: () => Promise.resolve(null),
+    findMany: () => Promise.resolve([]),
+  };
+
+  const messageDelegate: PrismaCompatibleClient['message'] = {
+    create: () =>
+      Promise.resolve({
+        id: 'mock',
+        conversationId: 'mock',
+        businessId: 'mock',
+        direction: 'INBOUND' as const,
+        senderType: 'CUSTOMER' as const,
+        senderUserId: null,
+        senderCustomerId: null,
+        content: 'mock',
+        contentType: 'text/plain',
+        channelMetadata: null,
+        metadata: null,
+        createdAt: new Date(),
+      }),
+    findUnique: () => Promise.resolve(null),
+    findMany: () => Promise.resolve([]),
+  };
+
   return {
     user: userDelegate,
     session: sessionDelegate,
@@ -219,6 +274,8 @@ function createMockPrisma(): PrismaCompatibleClient {
     auditEvent: auditEventDelegate,
     customer: customerDelegate,
     customerContactMethod: customerContactMethodDelegate,
+    conversation: conversationDelegate,
+    message: messageDelegate,
   };
 }
 
@@ -239,6 +296,7 @@ describe('createApiDependencies', () => {
         expect(deps.repositories.tenancy).toBeDefined();
         expect(deps.repositories.audit).toBeDefined();
         expect(deps.repositories.crm).toBeDefined();
+        expect(deps.repositories.conversations).toBeDefined();
 
         // Services
         expect(deps.services.identity).toBeDefined();
@@ -246,6 +304,7 @@ describe('createApiDependencies', () => {
         expect(deps.services.authz).toBeDefined();
         expect(deps.services.audit).toBeDefined();
         expect(deps.services.crm).toBeDefined();
+        expect(deps.services.conversations).toBeDefined();
       },
     );
   });

@@ -9,17 +9,20 @@ import type { IdentityRepository } from '@/domains/identity/repository';
 import type { TenancyRepository } from '@/domains/tenancy/repository';
 import type { AuditRepository } from '@/domains/audit/repository';
 import type { CrmRepository } from '@/domains/crm/repository';
+import type { ConversationRepository } from '@/domains/conversations/repository';
 
 import type { IdentityService } from '@/domains/identity/service';
 import type { TenancyService } from '@/domains/tenancy/service';
 import type { AuthzService } from '@/domains/authz/service';
 import type { AuditService } from '@/domains/audit/service';
 import type { CrmService } from '@/domains/crm/service';
+import type { ConversationService } from '@/domains/conversations/service';
 
 import type { IdentityRepositoryDb } from '@/domains/identity/repository';
 import type { TenancyRepositoryDb } from '@/domains/tenancy/repository';
 import type { AuditRepositoryDb } from '@/domains/audit/repository';
 import type { CrmRepositoryDb } from '@/domains/crm/repository';
+import type { ConversationRepositoryDb } from '@/domains/conversations/repository';
 
 // ---------------------------------------------------------------------------
 // Container types
@@ -31,6 +34,7 @@ export interface ApiRepositories {
   readonly tenancy: TenancyRepository;
   readonly audit: AuditRepository;
   readonly crm: CrmRepository;
+  readonly conversations: ConversationRepository;
 }
 
 /** All services available to API handlers */
@@ -40,6 +44,7 @@ export interface ApiServices {
   readonly authz: AuthzService;
   readonly audit: AuditService;
   readonly crm: CrmService;
+  readonly conversations: ConversationService;
 }
 
 /** Complete API dependency container */
@@ -60,7 +65,8 @@ export interface PrismaCompatibleClient
   extends IdentityRepositoryDb,
     TenancyRepositoryDb,
     AuditRepositoryDb,
-    CrmRepositoryDb {}
+    CrmRepositoryDb,
+    ConversationRepositoryDb {}
 
 /** Options for creating the API dependency container */
 export interface ApiCompositionOptions {
