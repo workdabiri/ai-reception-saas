@@ -562,6 +562,13 @@ describe('Prisma Schema — Conversations Domain (R2)', () => {
     expect(model![1]).toContain('@@index([businessId, channel])');
   });
 
+  // Conversation composite unique for tenant-safe FK from messages
+  it('Conversation has @@unique([id, businessId]) for composite FK', () => {
+    const model = schema.match(/model\s+Conversation\s*\{([\s\S]+?)\}/);
+    expect(model).not.toBeNull();
+    expect(model![1]).toContain('@@unique([id, businessId])');
+  });
+
   // Message required fields
   it('Message has required fields', () => {
     const model = schema.match(/model\s+Message\s*\{([\s\S]+?)\}/);
@@ -600,6 +607,15 @@ describe('Prisma Schema — Conversations Domain (R2)', () => {
     expect(model![1]).toContain('@@index([businessId, createdAt])');
     expect(model![1]).toContain('@@index([senderUserId])');
     expect(model![1]).toContain('@@index([senderCustomerId])');
+  });
+
+  // Message composite conversation relation enforces tenant consistency
+  it('Message.conversation uses composite FK [conversationId, businessId]', () => {
+    const model = schema.match(/model\s+Message\s*\{([\s\S]+?)\}/);
+    expect(model).not.toBeNull();
+    const body = model![1];
+    expect(body).toContain('fields: [conversationId, businessId]');
+    expect(body).toContain('references: [id, businessId]');
   });
 
   // senderCustomerId UUID + FK
@@ -681,6 +697,31 @@ describe('Prisma Schema — R2 Migration RLS', () => {
   it('migration creates index on sender_customer_id', () => {
     expect(migrationSql).toContain(
       'messages_sender_customer_id_idx',
+    );
+  });
+
+  // Composite unique + FK for message tenant consistency
+  it('migration creates composite unique constraint on conversations(id, business_id)', () => {
+    expect(migrationSql).toContain(
+      'conversations_id_business_id_key',
+    );
+    expect(migrationSql).toMatch(
+      /UNIQUE\s*\("id",\s*"business_id"\)/,
+    );
+  });
+
+  it('migration creates composite FK for messages(conversation_id, business_id)', () => {
+    expect(migrationSql).toContain(
+      'messages_conversation_id_business_id_fkey',
+    );
+    expect(migrationSql).toMatch(
+      /FOREIGN KEY \("conversation_id", "business_id"\)\s+REFERENCES "conversations"\("id", "business_id"\)/,
+    );
+  });
+
+  it('migration does NOT have old simple conversation_id FK', () => {
+    expect(migrationSql).not.toContain(
+      'messages_conversation_id_fkey',
     );
   });
 });
