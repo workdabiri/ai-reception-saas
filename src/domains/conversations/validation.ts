@@ -50,6 +50,15 @@ export function isValidChannelType(value: string): value is ChannelTypeValue {
   return (CHANNEL_TYPE_VALUES as readonly string[]).includes(value);
 }
 
+/** UUID v4 regex for basic format validation */
+const UUID_RE =
+  /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+/** Validates that a string looks like a UUID */
+export function isValidUuid(value: string): boolean {
+  return UUID_RE.test(value);
+}
+
 // ---------------------------------------------------------------------------
 // Conversation state machine
 // ---------------------------------------------------------------------------
@@ -239,6 +248,21 @@ export function validateCreateMessageInput(
     typeof input.contentType !== 'string'
   ) {
     errors.push('contentType must be a string');
+  }
+
+  // Validate senderCustomerId format if provided
+  if (input.senderCustomerId !== undefined && input.senderCustomerId !== null) {
+    if (typeof input.senderCustomerId !== 'string' || !isValidUuid(input.senderCustomerId)) {
+      errors.push('senderCustomerId must be a valid UUID');
+    }
+    // senderCustomerId is semantically for INBOUND messages only.
+    // For OUTBOUND/INTERNAL, reject if provided.
+    if (
+      input.direction &&
+      (input.direction === 'OUTBOUND' || input.direction === 'INTERNAL')
+    ) {
+      errors.push('senderCustomerId is not allowed for OUTBOUND or INTERNAL messages');
+    }
   }
 
   return errors.length === 0 ? success() : failure(...errors);

@@ -17,6 +17,7 @@ import {
   validateCreateConversationInput,
   validateCreateMessageInput,
   validateUpdateConversationInput,
+  validateInitialMessageInput,
   validateTransition,
   isAuditRequiredTransition,
   OPERATOR_ALLOWED_DIRECTIONS,
@@ -102,11 +103,19 @@ export function createConversationService(
         return err(INVALID_INPUT, validation.errors.join('; '));
       }
 
+      // FIX 3: Validate initialMessage BEFORE creating conversation
+      if (input.initialMessage) {
+        const msgValidation = validateInitialMessageInput(input.initialMessage);
+        if (!msgValidation.valid) {
+          return err(INVALID_MSG_INPUT, msgValidation.errors.join('; '));
+        }
+      }
+
       // Create conversation
       const convResult = await repository.createConversation(input);
       if (!convResult.ok) return convResult;
 
-      // Create initial message if provided
+      // Create initial message if provided (already validated above)
       if (input.initialMessage) {
         const msgResult = await repository.createMessage({
           conversationId: convResult.data.id,
@@ -123,10 +132,10 @@ export function createConversationService(
         if (!msgResult.ok) return msgResult;
       }
 
-      // Emit audit — conversation.created
+      // FIX 5: Use actorUserId from input for audit
       emitAudit(
         input.businessId,
-        undefined, // system action at creation
+        input.actorUserId,
         'conversation.created',
         'conversation',
         convResult.data.id,
@@ -219,14 +228,14 @@ export function createConversationService(
       );
       if (!updateResult.ok) return updateResult;
 
-      // Emit audit if customer was linked
+      // FIX 5: Emit audit with actorUserId if customer was linked
       if (
         input.data.customerId &&
         existing.data.customerId === null
       ) {
         emitAudit(
           input.businessId,
-          undefined,
+          input.actorUserId,
           'conversation.customer_linked',
           'conversation',
           input.conversationId,
@@ -388,12 +397,14 @@ export function createConversationService(
         direction === 'OUTBOUND' ? 'OPERATOR' : 'CUSTOMER'
       );
 
+      // FIX 4: Include senderCustomerId in message input
       const msgInput = {
         conversationId: input.conversationId,
         businessId: input.businessId,
         direction,
         senderType,
         senderUserId: input.senderUserId,
+        senderCustomerId: input.senderCustomerId,
         content: input.content,
         contentType: input.contentType,
       } as const;
@@ -417,7 +428,7 @@ export function createConversationService(
       const msgResult = await repository.createMessage(msgInput);
       if (!msgResult.ok) return msgResult;
 
-      // Emit audit for operator messages
+      // Emit audit for operator messages — never includes message content
       if (isOperatorMessage) {
         const auditAction =
           direction === 'INTERNAL'

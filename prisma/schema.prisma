@@ -301,6 +301,7 @@ model Customer {
   business       Business                @relation(fields: [businessId], references: [id])
   contactMethods CustomerContactMethod[]
   conversations  Conversation[]
+  sentMessages   Message[]      @relation("MessageSenderCustomer")
 
   @@index([businessId, status])
   @@index([businessId, createdAt])
@@ -369,19 +370,21 @@ model Message {
   direction        MessageDirection
   senderType       MessageSenderType @map("sender_type")
   senderUserId     String?           @map("sender_user_id") @db.Uuid
-  senderCustomerId String?           @map("sender_customer_id")
+  senderCustomerId String?           @map("sender_customer_id") @db.Uuid
   content          String            @db.Text
   contentType      String            @default("text/plain") @map("content_type")
   channelMetadata  Json?             @map("channel_metadata")
   metadata         Json?
   createdAt        DateTime          @default(now()) @map("created_at")
 
-  conversation Conversation @relation(fields: [conversationId], references: [id])
-  business     Business     @relation(fields: [businessId], references: [id])
-  senderUser   User?        @relation("MessageSender", fields: [senderUserId], references: [id])
+  conversation   Conversation @relation(fields: [conversationId], references: [id])
+  business       Business     @relation(fields: [businessId], references: [id])
+  senderUser     User?        @relation("MessageSender", fields: [senderUserId], references: [id])
+  senderCustomer Customer?    @relation("MessageSenderCustomer", fields: [senderCustomerId], references: [id], onDelete: SetNull)
 
   @@index([conversationId, createdAt])
   @@index([businessId, createdAt])
   @@index([senderUserId])
+  @@index([senderCustomerId])
   @@map("messages")
 }

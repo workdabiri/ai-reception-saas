@@ -25,6 +25,7 @@ import type {
 /** Input for creating a conversation with optional initial message */
 export interface CreateConversationServiceInput extends CreateConversationInput {
   readonly initialMessage?: InitialMessageInput;
+  readonly actorUserId?: string;
 }
 
 /** Input for finding a conversation by ID */
@@ -49,6 +50,7 @@ export interface UpdateConversationServiceInput {
   readonly conversationId: string;
   readonly businessId: string;
   readonly data: UpdateConversationInput;
+  readonly actorUserId?: string;
 }
 
 /** Input for assigning a conversation */
@@ -74,6 +76,7 @@ export interface CreateMessageServiceInput {
   readonly content: string;
   readonly direction: MessageDirectionValue;
   readonly senderUserId?: string;
+  readonly senderCustomerId?: string;
   readonly contentType?: string;
 }
 

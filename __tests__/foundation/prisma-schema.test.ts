@@ -599,6 +599,18 @@ describe('Prisma Schema — Conversations Domain (R2)', () => {
     expect(model![1]).toContain('@@index([conversationId, createdAt])');
     expect(model![1]).toContain('@@index([businessId, createdAt])');
     expect(model![1]).toContain('@@index([senderUserId])');
+    expect(model![1]).toContain('@@index([senderCustomerId])');
+  });
+
+  // senderCustomerId UUID + FK
+  it('Message.senderCustomerId is UUID with Customer relation', () => {
+    const model = schema.match(/model\s+Message\s*\{([\s\S]+?)\}/);
+    expect(model).not.toBeNull();
+    const body = model![1];
+    expect(body).toContain('sender_customer_id');
+    expect(body).toContain('@db.Uuid');
+    expect(body).toContain('MessageSenderCustomer');
+    expect(body).toContain('onDelete: SetNull');
   });
 
   // Relations
@@ -614,6 +626,13 @@ describe('Prisma Schema — Conversations Domain (R2)', () => {
     expect(model![1]).toContain('conversations');
   });
 
+  it('Customer has sentMessages relation for MessageSenderCustomer', () => {
+    const model = schema.match(/model\s+Customer\s*\{([\s\S]+?)\}/);
+    expect(model).not.toBeNull();
+    expect(model![1]).toContain('sentMessages');
+    expect(model![1]).toContain('MessageSenderCustomer');
+  });
+
   // Forbidden concepts in Conversation/Message
   it('Conversation does NOT contain forbidden concepts', () => {
     const model = schema.match(/model\s+Conversation\s*\{([\s\S]+?)\}/);
@@ -622,5 +641,46 @@ describe('Prisma Schema — Conversations Domain (R2)', () => {
     expect(body).not.toContain('serviceCategory');
     expect(body).not.toContain('mandoub');
     expect(body).not.toContain('order');
+  });
+});
+
+// ---------------------------------------------------------------------------
+// RLS in migration SQL tests
+// ---------------------------------------------------------------------------
+
+describe('Prisma Schema — R2 Migration RLS', () => {
+  const migrationPath = path.resolve(
+    __dirname,
+    '../../prisma/migrations/20260523124455_add_conversation_message_foundation/migration.sql',
+  );
+  const migrationSql = fs.readFileSync(migrationPath, 'utf-8');
+
+  it('migration enables RLS on conversations table', () => {
+    expect(migrationSql).toContain(
+      'ALTER TABLE "conversations" ENABLE ROW LEVEL SECURITY',
+    );
+  });
+
+  it('migration enables RLS on messages table', () => {
+    expect(migrationSql).toContain(
+      'ALTER TABLE "messages" ENABLE ROW LEVEL SECURITY',
+    );
+  });
+
+  it('migration creates sender_customer_id as UUID not TEXT', () => {
+    expect(migrationSql).toContain('"sender_customer_id" UUID');
+    expect(migrationSql).not.toMatch(/"sender_customer_id"\s+TEXT/);
+  });
+
+  it('migration creates FK for sender_customer_id to customers', () => {
+    expect(migrationSql).toContain(
+      'messages_sender_customer_id_fkey',
+    );
+  });
+
+  it('migration creates index on sender_customer_id', () => {
+    expect(migrationSql).toContain(
+      'messages_sender_customer_id_idx',
+    );
   });
 });

@@ -44,7 +44,7 @@ CREATE TABLE "messages" (
     "direction" "MessageDirection" NOT NULL,
     "sender_type" "MessageSenderType" NOT NULL,
     "sender_user_id" UUID,
-    "sender_customer_id" TEXT,
+    "sender_customer_id" UUID,
     "content" TEXT NOT NULL,
     "content_type" TEXT NOT NULL DEFAULT 'text/plain',
     "channel_metadata" JSONB,
@@ -78,6 +78,9 @@ CREATE INDEX "messages_business_id_created_at_idx" ON "messages"("business_id", 
 -- CreateIndex
 CREATE INDEX "messages_sender_user_id_idx" ON "messages"("sender_user_id");
 
+-- CreateIndex
+CREATE INDEX "messages_sender_customer_id_idx" ON "messages"("sender_customer_id");
+
 -- AddForeignKey
 ALTER TABLE "conversations" ADD CONSTRAINT "conversations_business_id_fkey" FOREIGN KEY ("business_id") REFERENCES "businesses"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
 
@@ -95,3 +98,10 @@ ALTER TABLE "messages" ADD CONSTRAINT "messages_business_id_fkey" FOREIGN KEY ("
 
 -- AddForeignKey
 ALTER TABLE "messages" ADD CONSTRAINT "messages_sender_user_id_fkey" FOREIGN KEY ("sender_user_id") REFERENCES "users"("id") ON DELETE SET NULL ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "messages" ADD CONSTRAINT "messages_sender_customer_id_fkey" FOREIGN KEY ("sender_customer_id") REFERENCES "customers"("id") ON DELETE SET NULL ON UPDATE CASCADE;
+
+-- EnableRowLevelSecurity
+ALTER TABLE "conversations" ENABLE ROW LEVEL SECURITY;
+ALTER TABLE "messages" ENABLE ROW LEVEL SECURITY;

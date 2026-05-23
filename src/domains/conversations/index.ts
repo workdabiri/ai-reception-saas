@@ -37,6 +37,7 @@ export {
   isValidMessageDirection,
   isValidMessageSenderType,
   isValidChannelType,
+  isValidUuid,
   VALID_TRANSITIONS,
   AUDIT_REQUIRED_TRANSITIONS,
   isValidTransition,
