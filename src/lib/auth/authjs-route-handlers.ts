@@ -155,6 +155,9 @@ export function createAuthjsRouteHandlers(
     secret,
     basePath: input.basePath,
     debug: input.debug ?? false,
+    pages: {
+      signIn: '/login',
+    },
     callbacks: {
       async jwt({ token, user }) {
         // On sign-in, the user object from DB is present.
