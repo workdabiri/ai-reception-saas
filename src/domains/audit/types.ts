@@ -5,6 +5,7 @@
 // ===========================================================================
 
 import type { JsonValue } from '@/lib/types';
+import type { UserDisplayInfo } from '@/domains/identity/types';
 
 /** Allowed audit actor type values */
 export const AUDIT_ACTOR_TYPE_VALUES = [
@@ -34,6 +35,8 @@ export interface AuditEventIdentity {
   result: AuditResultValue;
   metadata: JsonValue | null;
   createdAt: string;
+  /** Resolved actor user display info (present when loaded via list query) */
+  actorUser?: UserDisplayInfo;
 }
 
 /** Input for creating an audit event */

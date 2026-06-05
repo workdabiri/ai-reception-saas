@@ -27,6 +27,17 @@ export interface UserIdentity {
   updatedAt: string;
 }
 
+/**
+ * Tenant-safe user display info — a read-only subset of UserIdentity.
+ * Intentionally excludes email, locale, timestamps, and status to prevent
+ * PII leakage across tenant-scoped API responses.
+ */
+export interface UserDisplayInfo {
+  id: string;
+  name: string;
+  avatarUrl: string | null;
+}
+
 /** Domain representation of a session */
 export interface SessionIdentity {
   id: string;

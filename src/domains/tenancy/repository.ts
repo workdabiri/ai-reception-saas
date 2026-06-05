@@ -57,6 +57,8 @@ export interface BusinessMembershipRecord {
   joinedAt: Date | null;
   createdAt: Date;
   updatedAt: Date;
+  /** Prisma-included user relation (present when loaded via list query) */
+  user?: { id: string; name: string; avatarUrl: string | null };
 }
 
 // ---------------------------------------------------------------------------
@@ -74,7 +76,7 @@ export interface TenancyRepositoryDb {
     create(args: { data: { businessId: string; userId: string; role?: MembershipRoleValue; status?: MembershipStatusValue; invitedByUserId?: string } }): Promise<BusinessMembershipRecord>;
     update(args: { where: { id: string }; data: Partial<{ role: MembershipRoleValue; status: MembershipStatusValue; joinedAt: Date }> }): Promise<BusinessMembershipRecord>;
     findUnique(args: { where: { id: string } | { userId_businessId: { userId: string; businessId: string } } }): Promise<BusinessMembershipRecord | null>;
-    findMany(args: { where: { businessId: string; status?: { not: MembershipStatusValue } }; orderBy: { createdAt: 'desc' } }): Promise<BusinessMembershipRecord[]>;
+    findMany(args: { where: { businessId: string; status?: { not: MembershipStatusValue } }; include?: { user?: { select: { id: true; name: true; avatarUrl: true } } }; orderBy: { createdAt: 'desc' } }): Promise<BusinessMembershipRecord[]>;
     findFirst(args: { where: { userId: string; businessId: string; status: MembershipStatusValue } }): Promise<BusinessMembershipRecord | null>;
   };
 }
@@ -118,7 +120,7 @@ export function mapBusinessRecord(record: BusinessRecord): BusinessIdentity {
 }
 
 export function mapBusinessMembershipRecord(record: BusinessMembershipRecord): BusinessMembershipIdentity {
-  return {
+  const identity: BusinessMembershipIdentity = {
     id: record.id,
     businessId: record.businessId,
     userId: record.userId,
@@ -129,6 +131,14 @@ export function mapBusinessMembershipRecord(record: BusinessMembershipRecord): B
     createdAt: record.createdAt.toISOString(),
     updatedAt: record.updatedAt.toISOString(),
   };
+  if (record.user) {
+    identity.user = {
+      id: record.user.id,
+      name: record.user.name,
+      avatarUrl: record.user.avatarUrl,
+    };
+  }
+  return identity;
 }
 
 // ---------------------------------------------------------------------------
@@ -232,7 +242,7 @@ export function createTenancyRepository(db: TenancyRepositoryDb): TenancyReposit
         if (!input.includeRemoved) {
           where.status = { not: 'REMOVED' };
         }
-        const records = await db.businessMembership.findMany({ where, orderBy: { createdAt: 'desc' } });
+        const records = await db.businessMembership.findMany({ where, include: { user: { select: { id: true as const, name: true as const, avatarUrl: true as const } } }, orderBy: { createdAt: 'desc' } });
         return ok(records.map(mapBusinessMembershipRecord));
       } catch {
         return err('TENANCY_REPOSITORY_ERROR', 'Tenancy repository operation failed');

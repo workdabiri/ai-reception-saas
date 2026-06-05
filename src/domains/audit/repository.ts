@@ -32,6 +32,8 @@ export interface AuditEventRecord {
   result: AuditResultValue;
   metadata: JsonValue | null;
   createdAt: Date;
+  /** Prisma-included actorUser relation (present when loaded via list query) */
+  actorUser?: { id: string; name: string; avatarUrl: string | null } | null;
 }
 
 // ---------------------------------------------------------------------------
@@ -66,6 +68,7 @@ export interface AuditRepositoryDb {
         result: AuditResultValue;
         actorType: AuditActorTypeValue;
       }>;
+      include?: { actorUser?: { select: { id: true; name: true; avatarUrl: true } } };
       orderBy: { createdAt: 'desc' };
       take: number;
     }): Promise<AuditEventRecord[]>;
@@ -97,7 +100,7 @@ export interface AuditRepository {
 export function mapAuditEventRecord(
   record: AuditEventRecord,
 ): AuditEventIdentity {
-  return {
+  const identity: AuditEventIdentity = {
     id: record.id,
     businessId: record.businessId,
     actorType: record.actorType,
@@ -109,6 +112,14 @@ export function mapAuditEventRecord(
     metadata: record.metadata,
     createdAt: record.createdAt.toISOString(),
   };
+  if (record.actorUser) {
+    identity.actorUser = {
+      id: record.actorUser.id,
+      name: record.actorUser.name,
+      avatarUrl: record.actorUser.avatarUrl,
+    };
+  }
+  return identity;
 }
 
 // ---------------------------------------------------------------------------
@@ -180,6 +191,7 @@ export function createAuditRepository(
 
         const records = await db.auditEvent.findMany({
           where,
+          include: { actorUser: { select: { id: true as const, name: true as const, avatarUrl: true as const } } },
           orderBy: { createdAt: 'desc' },
           take,
         });
