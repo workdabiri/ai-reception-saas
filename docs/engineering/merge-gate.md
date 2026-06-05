@@ -98,3 +98,85 @@ A PR will **not** be merged if:
 |---|---|---|
 | `ai-reception-saas-a7cff9d2` (frontend) | `bun run lint` · `bun run build` | Squash merge |
 | `ai-reception-saas` (backend) | `pnpm lint` · `pnpm typecheck` · `pnpm build` · `pnpm test` | Squash merge |
+
+---
+
+## Frontend Route/UI Smoke Tests
+
+For frontend route or UI changes, smoke tests must cover the changed user path:
+
+- Open the changed route in local, preview, or staging.
+- Verify auth-gated behavior where applicable.
+- Verify loading state when data is pending.
+- Verify empty state when API returns no rows.
+- Verify error state when API fails.
+- Verify forbidden/access-denied state when role lacks permission.
+- Verify no stale mock-data appears in fully wired routes.
+- Verify active business context is correct for business-scoped screens.
+- Verify no console/runtime crash is introduced.
+
+---
+
+## Backend/API Smoke Tests
+
+For backend/API PRs, smoke tests must cover the changed endpoint or domain path:
+
+- Authenticated allowed request.
+- Unauthenticated request when applicable.
+- Forbidden role/permission case.
+- Cross-tenant access denial.
+- Invalid route/query/body validation.
+- Not-found behavior.
+- Response shape matches domain/API contract.
+- Audit logging behavior when relevant.
+- Rate-limit/guard behavior when relevant.
+
+---
+
+## Security-Sensitive PRs
+
+For auth, RBAC, tenancy, identity, audit, billing, AI safety, and channel adapter work, add targeted checks:
+
+- Tenant isolation is preserved.
+- Frontend is never authoritative for permissions.
+- Sender identity is derived from auth context, not client body.
+- Cross-tenant user/business enumeration is blocked.
+- Removed/expired membership behavior is explicit.
+- Internal notes are not exposed to customers.
+- Audit events do not leak cross-tenant user data.
+- Identity lookup does not expose email/name across tenants.
+- AI stages S0–S4 are not weakened.
+- No direct AI send behavior is introduced without Product Owner approval.
+- Channel adapters do not leak provider-specific SDK logic into core domains.
+
+---
+
+## Merge Discipline
+
+- Merge only after CTO/Product approval.
+- Use **Squash and merge** only.
+- After merge, sync local main and verify:
+
+```bash
+git switch main
+git fetch origin main
+git pull origin main
+git status --short
+git log --oneline -5
+```
+
+- Confirm the squash commit appears on main.
+- Confirm feature branch commits did not land individually.
+
+---
+
+## Failure Rule
+
+If any CLI validation or smoke test fails:
+
+- Do not merge.
+- Do not start a new feature.
+- Create the smallest repair branch.
+- Fix only the failing scope.
+- Rerun validation and smoke tests.
+- Request CTO/Product review again.
