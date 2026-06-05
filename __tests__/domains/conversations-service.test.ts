@@ -7,7 +7,8 @@
 
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { ok, err } from '@/lib/result';
-import type { ConversationRepository } from '@/domains/conversations/repository';
+import type { ConversationRepository, ConversationRecordWithSummary } from '@/domains/conversations/repository';
+import { mapConversationWithSummary } from '@/domains/conversations/repository';
 import type { AuditService } from '@/domains/audit/service';
 import { createConversationService } from '@/domains/conversations/implementation';
 import type { ConversationService } from '@/domains/conversations/service';
@@ -959,5 +960,146 @@ describe('validateUpdateConversationInput', () => {
       subject: null as unknown as string,
     });
     expect(result.valid).toBe(true);
+  });
+});
+
+// ===========================================================================
+// 13. mapConversationWithSummary — last message summary fields
+//
+// These tests directly exercise the repository mapper for the three fields
+// added in PR #76: lastMessageContent, lastMessageDirection, lastMessageSenderType.
+// ===========================================================================
+
+describe('mapConversationWithSummary — last message fields', () => {
+  /** Minimal base record shared by all mapper tests */
+  const BASE_RECORD: Omit<ConversationRecordWithSummary, '_count' | 'messages'> = {
+    id: CONVERSATION_ID,
+    businessId: BUSINESS_ID,
+    customerId: null,
+    channel: 'WEBSITE_CHAT',
+    status: 'NEW',
+    subject: null,
+    assignedUserId: null,
+    aiClassificationStatus: 'NOT_REQUESTED',
+    aiDraftStatus: 'NOT_REQUESTED',
+    channelMetadata: null,
+    metadata: null,
+    closedAt: null,
+    createdAt: new Date('2026-01-01T00:00:00.000Z'),
+    updatedAt: new Date('2026-01-01T00:00:00.000Z'),
+  };
+
+  it('maps lastMessageContent, lastMessageDirection, and lastMessageSenderType when a message is present', () => {
+    const msgCreatedAt = new Date('2026-01-02T10:30:00.000Z');
+    const record: ConversationRecordWithSummary = {
+      ...BASE_RECORD,
+      _count: { messages: 1 },
+      messages: [
+        {
+          createdAt: msgCreatedAt,
+          content: 'Hello, I need help with my appointment.',
+          direction: 'INBOUND',
+          senderType: 'CUSTOMER',
+        },
+      ],
+    };
+
+    const summary = mapConversationWithSummary(record);
+
+    expect(summary.messageCount).toBe(1);
+    expect(summary.lastMessageAt).toBe('2026-01-02T10:30:00.000Z');
+    expect(summary.lastMessageContent).toBe('Hello, I need help with my appointment.');
+    expect(summary.lastMessageDirection).toBe('INBOUND');
+    expect(summary.lastMessageSenderType).toBe('CUSTOMER');
+  });
+
+  it('maps all last-message fields as null when no messages exist (empty array)', () => {
+    const record: ConversationRecordWithSummary = {
+      ...BASE_RECORD,
+      _count: { messages: 0 },
+      messages: [],
+    };
+
+    const summary = mapConversationWithSummary(record);
+
+    expect(summary.messageCount).toBe(0);
+    expect(summary.lastMessageAt).toBeNull();
+    expect(summary.lastMessageContent).toBeNull();
+    expect(summary.lastMessageDirection).toBeNull();
+    expect(summary.lastMessageSenderType).toBeNull();
+  });
+
+  it('maps all last-message fields as null when messages is undefined', () => {
+    const record: ConversationRecordWithSummary = {
+      ...BASE_RECORD,
+      _count: { messages: 0 },
+      messages: undefined,
+    };
+
+    const summary = mapConversationWithSummary(record);
+
+    expect(summary.lastMessageAt).toBeNull();
+    expect(summary.lastMessageContent).toBeNull();
+    expect(summary.lastMessageDirection).toBeNull();
+    expect(summary.lastMessageSenderType).toBeNull();
+  });
+
+  it('uses only the first (latest) message when multiple are provided', () => {
+    // In production the query uses take:1 — but the mapper itself should
+    // only read messages[0] regardless of array length.
+    const record: ConversationRecordWithSummary = {
+      ...BASE_RECORD,
+      _count: { messages: 3 },
+      messages: [
+        {
+          createdAt: new Date('2026-01-03T09:00:00.000Z'),
+          content: 'Latest message',
+          direction: 'OUTBOUND',
+          senderType: 'OPERATOR',
+        },
+        {
+          createdAt: new Date('2026-01-02T08:00:00.000Z'),
+          content: 'Earlier message',
+          direction: 'INBOUND',
+          senderType: 'CUSTOMER',
+        },
+      ],
+    };
+
+    const summary = mapConversationWithSummary(record);
+
+    // Must use messages[0] — the most recent (caller-sorted)
+    expect(summary.lastMessageContent).toBe('Latest message');
+    expect(summary.lastMessageDirection).toBe('OUTBOUND');
+    expect(summary.lastMessageSenderType).toBe('OPERATOR');
+  });
+
+  it('PII guard — message shape includes no user/customer relation fields', () => {
+    // ConversationRecordWithSummary.messages only carries scalar fields:
+    // createdAt, content, direction, senderType.
+    // Verify no email, name, or avatarUrl property exists on the joined shape.
+    const msgRecord = {
+      createdAt: new Date(),
+      content: 'Test message',
+      direction: 'INBOUND' as const,
+      senderType: 'CUSTOMER' as const,
+    };
+
+    expect(msgRecord).not.toHaveProperty('email');
+    expect(msgRecord).not.toHaveProperty('name');
+    expect(msgRecord).not.toHaveProperty('avatarUrl');
+    expect(msgRecord).not.toHaveProperty('senderUser');
+    expect(msgRecord).not.toHaveProperty('senderCustomer');
+
+    const record: ConversationRecordWithSummary = {
+      ...BASE_RECORD,
+      _count: { messages: 1 },
+      messages: [msgRecord],
+    };
+
+    const summary = mapConversationWithSummary(record);
+    expect(summary).not.toHaveProperty('email');
+    expect(summary).not.toHaveProperty('name');
+    expect(summary).not.toHaveProperty('avatarUrl');
   });
 });
