@@ -121,7 +121,7 @@ export interface ConversationRepositoryDb {
         NOT?: { status: ConversationStatusValue };
       };
       orderBy: { createdAt: 'desc' } | { updatedAt: 'desc' };
-      take: number;
+      take?: number;
       include?: {
         _count?: { select: { messages: boolean } };
         messages?: { orderBy: { createdAt: 'desc' }; take: number };
@@ -574,15 +574,21 @@ export function createConversationRepository(
 
     async countNeedingFollowUp(businessId, cutoff) {
       try {
-        // Load active conversations (excluding WAITING_CUSTOMER and RESOLVED)
-        // with their most recent message to check direction and age.
+        // Exact count for MVP: loads all active conversations with their
+        // most recent message. The in-memory filter checks direction and age.
+        //
+        // Excludes WAITING_CUSTOMER (operator replied, awaiting customer)
+        // and RESOLVED (terminal).
+        //
+        // Scale note: if conversation volume grows beyond ~5k per business,
+        // replace this with denormalized lastMessageDirection / lastMessageAt
+        // columns on the Conversation model, or a raw SQL aggregate.
         const FOLLOWUP_STATUSES: ConversationStatusValue[] = [
           'NEW', 'OPEN', 'ASSIGNED', 'WAITING_OPERATOR', 'ESCALATED',
         ];
         const records = await db.conversation.findMany({
           where: { businessId, status: { in: FOLLOWUP_STATUSES } },
           orderBy: { createdAt: 'desc' },
-          take: 10000, // upper bound — MVP scale
           include: {
             messages: { orderBy: { createdAt: 'desc' }, take: 1 },
           },
