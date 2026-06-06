@@ -113,6 +113,10 @@ function createMockRepository(): ConversationRepository {
         return Promise.resolve(ok(null)); // not found
       },
     ),
+    countOpenConversations: vi.fn().mockResolvedValue(ok(0)),
+    countByStatus: vi.fn().mockResolvedValue(ok(0)),
+    countDraftsPendingReview: vi.fn().mockResolvedValue(ok(0)),
+    countNeedingFollowUp: vi.fn().mockResolvedValue(ok(0)),
   };
 }
 

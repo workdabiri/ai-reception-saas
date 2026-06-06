@@ -72,6 +72,13 @@ export interface AuditRepositoryDb {
       orderBy: { createdAt: 'desc' };
       take: number;
     }): Promise<AuditEventRecord[]>;
+    count(args: {
+      where: {
+        businessId?: string;
+        result?: AuditResultValue;
+        createdAt?: { gte: Date };
+      };
+    }): Promise<number>;
   };
 }
 
@@ -90,6 +97,15 @@ export interface AuditRepository {
   listAuditEvents(
     input: ListAuditEventsInput,
   ): Promise<ActionResult<readonly AuditEventIdentity[]>>;
+
+  /**
+   * Counts audit events with result = 'DENIED' for a business
+   * within a time window (since the given cutoff).
+   */
+  countDeniedEvents(
+    businessId: string,
+    since: Date,
+  ): Promise<ActionResult<number>>;
 }
 
 // ---------------------------------------------------------------------------
@@ -196,6 +212,20 @@ export function createAuditRepository(
           take,
         });
         return ok(records.map(mapAuditEventRecord));
+      } catch {
+        return err(
+          'AUDIT_REPOSITORY_ERROR',
+          'Audit repository operation failed',
+        );
+      }
+    },
+
+    async countDeniedEvents(businessId, since) {
+      try {
+        const count = await db.auditEvent.count({
+          where: { businessId, result: 'DENIED', createdAt: { gte: since } },
+        });
+        return ok(count);
       } catch {
         return err(
           'AUDIT_REPOSITORY_ERROR',

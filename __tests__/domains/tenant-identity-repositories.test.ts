@@ -142,6 +142,7 @@ function createMockAuditDb(): AuditRepositoryDb {
       create: vi.fn().mockResolvedValue(MOCK_AUDIT_RECORD),
       findUnique: vi.fn().mockResolvedValue(MOCK_AUDIT_RECORD),
       findMany: vi.fn().mockResolvedValue([MOCK_AUDIT_RECORD]),
+      count: vi.fn().mockResolvedValue(0),
     },
   };
 }

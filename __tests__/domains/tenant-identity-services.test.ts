@@ -126,6 +126,7 @@ function createMockAuditRepo(): AuditRepository {
     createAuditEvent: vi.fn().mockResolvedValue(ok(MOCK_AUDIT_EVENT)),
     findAuditEventById: vi.fn().mockResolvedValue(ok(MOCK_AUDIT_EVENT)),
     listAuditEvents: vi.fn().mockResolvedValue(ok([MOCK_AUDIT_EVENT])),
+    countDeniedEvents: vi.fn().mockResolvedValue(ok(0)),
   };
 }
 
