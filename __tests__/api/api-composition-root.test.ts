@@ -282,6 +282,15 @@ function createMockPrisma(): PrismaCompatibleClient {
     replyDraft: {
       findMany: () => Promise.resolve([]),
       count: () => Promise.resolve(0),
+      create: () => Promise.resolve({
+        id: 'mock',
+        businessId: 'mock',
+        conversationId: 'mock',
+        source: 'SYSTEM' as const,
+        status: 'PENDING_REVIEW' as const,
+        draftText: 'mock',
+        createdAt: new Date(),
+      }),
     },
   };
 }

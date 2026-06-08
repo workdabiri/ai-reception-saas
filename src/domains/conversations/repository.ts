@@ -226,6 +226,7 @@ export interface ConversationRepository {
       status: ConversationStatusValue;
       subject: string | null;
       assignedUserId: string | null;
+      aiDraftStatus: AiDraftStatusValue;
       metadata: unknown | null;
       closedAt: Date | null;
     }>,

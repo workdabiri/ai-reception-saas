@@ -71,3 +71,28 @@ export interface ReplyDraftDashboardItem {
   status: 'PENDING_REVIEW' | 'EDITED';
   createdAt: string;
 }
+
+// ---------------------------------------------------------------------------
+// Generate stub types
+// ---------------------------------------------------------------------------
+
+/** Input for creating a SYSTEM-generated stub draft */
+export interface CreateSystemDraftInput {
+  businessId: string;
+  conversationId: string;
+  createdByUserId: string;
+  draftText: string;
+}
+
+/** Result of generate-or-reuse stub draft */
+export interface GenerateStubDraftResult {
+  created: boolean;
+  draft: {
+    id: string;
+    conversationId: string;
+    source: ReplyDraftSourceValue;
+    status: 'PENDING_REVIEW' | 'EDITED';
+    draftTextPreview: string;
+    createdAt: string;
+  };
+}

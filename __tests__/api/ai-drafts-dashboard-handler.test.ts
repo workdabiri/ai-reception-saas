@@ -359,6 +359,7 @@ describe('ReplyDraft Repository', () => {
     const db = {
       replyDraft: {
         count: vi.fn().mockResolvedValue(0),
+        create: vi.fn().mockResolvedValue({ id: "mock", businessId: "mock", conversationId: "mock", source: "SYSTEM", status: "PENDING_REVIEW", draftText: "mock", createdAt: new Date() }),
         findMany: vi.fn().mockResolvedValue([]),
       },
     };
@@ -376,6 +377,7 @@ describe('ReplyDraft Repository', () => {
     const db = {
       replyDraft: {
         count: vi.fn().mockResolvedValue(0),
+        create: vi.fn().mockResolvedValue({ id: "mock", businessId: "mock", conversationId: "mock", source: "SYSTEM", status: "PENDING_REVIEW", draftText: "mock", createdAt: new Date() }),
         findMany: vi.fn().mockResolvedValue([]),
       },
     };
@@ -396,6 +398,7 @@ describe('ReplyDraft Repository', () => {
     const db = {
       replyDraft: {
         count: vi.fn().mockResolvedValue(0),
+        create: vi.fn().mockResolvedValue({ id: "mock", businessId: "mock", conversationId: "mock", source: "SYSTEM", status: "PENDING_REVIEW", draftText: "mock", createdAt: new Date() }),
         findMany: vi.fn().mockResolvedValue([]),
       },
     };
@@ -427,6 +430,7 @@ describe('ReplyDraft Repository', () => {
     const db = {
       replyDraft: {
         count: vi.fn().mockResolvedValue(1),
+        create: vi.fn(),
         findMany: vi.fn().mockResolvedValue([mockRecord]),
       },
     };
@@ -466,6 +470,7 @@ describe('ReplyDraft Repository', () => {
     const db = {
       replyDraft: {
         count: vi.fn().mockResolvedValue(1),
+        create: vi.fn(),
         findMany: vi.fn().mockResolvedValue([mockRecord]),
       },
     };
@@ -497,6 +502,7 @@ describe('ReplyDraft Repository', () => {
     const db = {
       replyDraft: {
         count: vi.fn().mockResolvedValue(1),
+        create: vi.fn(),
         findMany: vi.fn().mockResolvedValue([mockRecord]),
       },
     };
@@ -529,6 +535,7 @@ describe('ReplyDraft Repository', () => {
     const db = {
       replyDraft: {
         count: vi.fn().mockResolvedValue(1),
+        create: vi.fn(),
         findMany: vi.fn().mockResolvedValue([mockRecord]),
       },
     };
@@ -545,6 +552,7 @@ describe('ReplyDraft Repository', () => {
     const db = {
       replyDraft: {
         count: vi.fn().mockRejectedValue(new Error('db fail')),
+        create: vi.fn(),
         findMany: vi.fn().mockRejectedValue(new Error('db fail')),
       },
     };
@@ -561,6 +569,7 @@ describe('ReplyDraft Repository', () => {
     const db = {
       replyDraft: {
         count: vi.fn().mockResolvedValue(0),
+        create: vi.fn().mockResolvedValue({ id: "mock", businessId: "mock", conversationId: "mock", source: "SYSTEM", status: "PENDING_REVIEW", draftText: "mock", createdAt: new Date() }),
         findMany: vi.fn().mockResolvedValue([]),
       },
     };

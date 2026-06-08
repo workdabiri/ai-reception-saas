@@ -15,6 +15,8 @@ export {
   type ReplyDraftStatusValue,
   type ReplyDraftIdentity,
   type ReplyDraftDashboardItem,
+  type CreateSystemDraftInput,
+  type GenerateStubDraftResult,
 } from './types';
 
 export {
@@ -22,5 +24,7 @@ export {
   type ReplyDraftRepositoryDb,
   type ReplyDraftRepository,
   type ReplyDraftDashboardRecord,
+  type ReplyDraftRecord,
   type DashboardDraftsResult,
 } from './repository';
+

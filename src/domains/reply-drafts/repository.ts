@@ -11,6 +11,8 @@ import type {
   ReplyDraftSourceValue,
   ReplyDraftStatusValue,
   ReplyDraftDashboardItem,
+  CreateSystemDraftInput,
+  GenerateStubDraftResult,
 } from './types';
 
 // ---------------------------------------------------------------------------
@@ -34,6 +36,17 @@ export interface ReplyDraftDashboardRecord {
   };
 }
 
+/** Raw reply draft record from create/find operations */
+export interface ReplyDraftRecord {
+  id: string;
+  businessId: string;
+  conversationId: string;
+  source: ReplyDraftSourceValue;
+  status: ReplyDraftStatusValue;
+  draftText: string;
+  createdAt: Date;
+}
+
 // ---------------------------------------------------------------------------
 // Injected DB client interface
 // ---------------------------------------------------------------------------
@@ -45,10 +58,11 @@ export interface ReplyDraftRepositoryDb {
       where: {
         businessId: string;
         status: { in: ReplyDraftStatusValue[] };
+        conversationId?: string;
       };
       orderBy: { createdAt: 'desc' };
       take: number;
-      include: {
+      include?: {
         conversation: {
           select: {
             subject: true;
@@ -61,13 +75,24 @@ export interface ReplyDraftRepositoryDb {
           };
         };
       };
-    }): Promise<ReplyDraftDashboardRecord[]>;
+    }): Promise<(ReplyDraftDashboardRecord | ReplyDraftRecord)[]>;
     count(args: {
       where: {
         businessId: string;
         status: { in: ReplyDraftStatusValue[] };
       };
     }): Promise<number>;
+    create(args: {
+      data: {
+        businessId: string;
+        conversationId: string;
+        createdByUserId: string;
+        source: ReplyDraftSourceValue;
+        status: ReplyDraftStatusValue;
+        draftText: string;
+        originalText: string;
+      };
+    }): Promise<ReplyDraftRecord>;
   };
 }
 
@@ -91,6 +116,31 @@ export interface ReplyDraftRepository {
     businessId: string,
     limit: number,
   ): Promise<ActionResult<DashboardDraftsResult>>;
+
+  /**
+   * Finds the latest reviewable (PENDING_REVIEW | EDITED) draft for a conversation.
+   * Returns null if none exists.
+   */
+  findLatestReviewableByConversation(
+    businessId: string,
+    conversationId: string,
+  ): Promise<ActionResult<ReplyDraftRecord | null>>;
+
+  /**
+   * Creates a SYSTEM-generated stub draft.
+   */
+  createSystemDraft(
+    input: CreateSystemDraftInput,
+  ): Promise<ActionResult<ReplyDraftRecord>>;
+
+  /**
+   * Finds or creates a reviewable SYSTEM stub draft for a conversation.
+   * Returns `{ created: true }` if a new draft was created, `{ created: false }`
+   * if an existing one was reused.
+   */
+  generateOrReuseStubDraft(
+    input: CreateSystemDraftInput,
+  ): Promise<ActionResult<GenerateStubDraftResult>>;
 }
 
 // ---------------------------------------------------------------------------
@@ -169,7 +219,93 @@ export function createReplyDraftRepository(
 
         return ok({
           pendingCount: count,
-          drafts: records.map(mapToDashboardItem),
+          drafts: (records as ReplyDraftDashboardRecord[]).map(mapToDashboardItem),
+        });
+      } catch {
+        return err(REPO_ERROR_CODE, REPO_ERROR_MSG);
+      }
+    },
+
+    async findLatestReviewableByConversation(businessId, conversationId) {
+      try {
+        const records = await db.replyDraft.findMany({
+          where: {
+            businessId,
+            conversationId,
+            status: { in: REVIEWABLE_STATUSES },
+          },
+          orderBy: { createdAt: 'desc' },
+          take: 1,
+        });
+        const record = records[0] ?? null;
+        return ok(record as ReplyDraftRecord | null);
+      } catch {
+        return err(REPO_ERROR_CODE, REPO_ERROR_MSG);
+      }
+    },
+
+    async createSystemDraft(input) {
+      try {
+        const record = await db.replyDraft.create({
+          data: {
+            businessId: input.businessId,
+            conversationId: input.conversationId,
+            createdByUserId: input.createdByUserId,
+            source: 'SYSTEM',
+            status: 'PENDING_REVIEW',
+            draftText: input.draftText,
+            originalText: input.draftText,
+          },
+        });
+        return ok(record);
+      } catch {
+        return err(REPO_ERROR_CODE, REPO_ERROR_MSG);
+      }
+    },
+
+    async generateOrReuseStubDraft(input) {
+      try {
+        // Check for existing reviewable draft
+        const existingResult = await this.findLatestReviewableByConversation(
+          input.businessId,
+          input.conversationId,
+        );
+        if (!existingResult.ok) {
+          return err(existingResult.error.code, existingResult.error.message);
+        }
+
+        if (existingResult.data) {
+          const existing = existingResult.data;
+          return ok({
+            created: false,
+            draft: {
+              id: existing.id,
+              conversationId: existing.conversationId,
+              source: existing.source,
+              status: existing.status as 'PENDING_REVIEW' | 'EDITED',
+              draftTextPreview: truncatePreview(existing.draftText),
+              createdAt: existing.createdAt.toISOString(),
+            },
+          });
+        }
+
+        // Create new stub draft
+        const createResult = await this.createSystemDraft(input);
+        if (!createResult.ok) {
+          return err(createResult.error.code, createResult.error.message);
+        }
+
+        const created = createResult.data;
+        return ok({
+          created: true,
+          draft: {
+            id: created.id,
+            conversationId: created.conversationId,
+            source: created.source,
+            status: created.status as 'PENDING_REVIEW' | 'EDITED',
+            draftTextPreview: truncatePreview(created.draftText),
+            createdAt: created.createdAt.toISOString(),
+          },
         });
       } catch {
         return err(REPO_ERROR_CODE, REPO_ERROR_MSG);
