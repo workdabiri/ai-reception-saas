@@ -116,7 +116,7 @@ async function requirePermission(
  * 4. Require ai_drafts.generate permission
  * 5. Verify conversation exists and belongs to business
  * 6. Generate or reuse SYSTEM stub draft
- * 7. Update Conversation.aiDraftStatus to READY
+ * 7. Reconcile Conversation.aiDraftStatus to READY
  * 8. Return result
  */
 export function createGenerateStubDraftHandler(
@@ -184,22 +184,21 @@ export function createGenerateStubDraftHandler(
       return actionResultToResponse(draftResult);
     }
 
-    // 7. Update Conversation.aiDraftStatus to READY
-    // Best-effort — draft is already persisted; status update failure
-    // is logged but does not fail the request.
-    if (draftResult.data.created) {
-      const statusResult = await deps.conversationRepository.updateConversation(
-        conversationId,
-        { aiDraftStatus: 'READY' },
+    // 7. Reconcile Conversation.aiDraftStatus to READY
+    // Best-effort reconciliation — whether the draft was newly created
+    // or reused, ensure Conversation.aiDraftStatus reflects the
+    // existence of a reviewable draft. This covers the edge case where
+    // a prior status update failed after draft creation.
+    const statusResult = await deps.conversationRepository.updateConversation(
+      conversationId,
+      { aiDraftStatus: 'READY' },
+    );
+    if (!statusResult.ok) {
+      // Log but don't fail — the draft is already persisted.
+      console.error(
+        `[reply-draft-generate] Failed to reconcile aiDraftStatus for conversation ${conversationId}:`,
+        statusResult.error,
       );
-      if (!statusResult.ok) {
-        // Log but don't fail — the draft was created successfully.
-        // The conversation status will be corrected on next generation or dashboard load.
-        console.error(
-          `[reply-draft-generate] Failed to update aiDraftStatus for conversation ${conversationId}:`,
-          statusResult.error,
-        );
-      }
     }
 
     // 8. Return result

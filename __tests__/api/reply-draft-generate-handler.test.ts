@@ -327,7 +327,7 @@ describe('Generate Stub Draft Handler', () => {
     );
   });
 
-  it('does NOT update aiDraftStatus when draft is reused', async () => {
+  it('reconciles aiDraftStatus to READY when existing reviewable draft is reused', async () => {
     const d = mockDeps();
     d.replyDraftRepository.generateOrReuseStubDraft.mockResolvedValue(ok({
       created: false,
@@ -342,18 +342,41 @@ describe('Generate Stub Draft Handler', () => {
     }));
     const h = createGenerateStubDraftHandler({ ...d, resolveTenantContext: okTenant() });
     await h(new Request('http://x', { method: 'POST' }), P);
-    expect(d.conversationRepository.updateConversation).not.toHaveBeenCalled();
+    expect(d.conversationRepository.updateConversation).toHaveBeenCalledWith(
+      CONV_ID,
+      { aiDraftStatus: 'READY' },
+    );
   });
 
-  it('succeeds even if aiDraftStatus update fails', async () => {
+  it('succeeds even if aiDraftStatus reconciliation fails (new draft)', async () => {
     const d = mockDeps();
     d.conversationRepository.updateConversation.mockResolvedValue(err('DB_ERROR', 'DB error'));
     const h = createGenerateStubDraftHandler({ ...d, resolveTenantContext: okTenant() });
     const r = await h(new Request('http://x', { method: 'POST' }), P);
-    // Draft creation succeeds even if status update fails
     expect(r.status).toBe(200);
     const body = await r.json();
     expect(body.data.created).toBe(true);
+  });
+
+  it('succeeds even if aiDraftStatus reconciliation fails (reused draft)', async () => {
+    const d = mockDeps();
+    d.replyDraftRepository.generateOrReuseStubDraft.mockResolvedValue(ok({
+      created: false,
+      draft: {
+        id: DRAFT_ID,
+        conversationId: CONV_ID,
+        source: 'SYSTEM',
+        status: 'EDITED',
+        draftTextPreview: 'Edited text…',
+        createdAt: '2026-01-01T00:00:00.000Z',
+      },
+    }));
+    d.conversationRepository.updateConversation.mockResolvedValue(err('DB_ERROR', 'DB error'));
+    const h = createGenerateStubDraftHandler({ ...d, resolveTenantContext: okTenant() });
+    const r = await h(new Request('http://x', { method: 'POST' }), P);
+    expect(r.status).toBe(200);
+    const body = await r.json();
+    expect(body.data.created).toBe(false);
   });
 
   // -------------------------------------------------------------------------
