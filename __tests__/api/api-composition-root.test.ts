@@ -279,6 +279,10 @@ function createMockPrisma(): PrismaCompatibleClient {
     customerContactMethod: customerContactMethodDelegate,
     conversation: conversationDelegate,
     message: messageDelegate,
+    replyDraft: {
+      findMany: () => Promise.resolve([]),
+      count: () => Promise.resolve(0),
+    },
   };
 }
 
@@ -300,6 +304,7 @@ describe('createApiDependencies', () => {
         expect(deps.repositories.audit).toBeDefined();
         expect(deps.repositories.crm).toBeDefined();
         expect(deps.repositories.conversations).toBeDefined();
+        expect(deps.repositories.replyDrafts).toBeDefined();
 
         // Services
         expect(deps.services.identity).toBeDefined();

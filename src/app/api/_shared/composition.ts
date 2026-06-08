@@ -29,6 +29,10 @@ import {
   createConversationRepository,
   type ConversationRepositoryDb,
 } from '@/domains/conversations/repository';
+import {
+  createReplyDraftRepository,
+  type ReplyDraftRepositoryDb,
+} from '@/domains/reply-drafts/repository';
 
 import { createIdentityService } from '@/domains/identity/implementation';
 import { createTenancyService } from '@/domains/tenancy/implementation';
@@ -96,6 +100,15 @@ function toConversationRepositoryDb(
   };
 }
 
+/** Extracts only the delegates required by ReplyDraftRepositoryDb */
+function toReplyDraftRepositoryDb(
+  prisma: PrismaCompatibleClient,
+): ReplyDraftRepositoryDb {
+  return {
+    replyDraft: prisma.replyDraft,
+  };
+}
+
 // ---------------------------------------------------------------------------
 // Factory
 // ---------------------------------------------------------------------------
@@ -140,6 +153,10 @@ export function createApiDependencies(
     customerLookup,
   );
 
+  const replyDraftRepository = createReplyDraftRepository(
+    toReplyDraftRepositoryDb(prisma),
+  );
+
   // Wire services
   const identityService = createIdentityService({
     repository: identityRepository,
@@ -166,6 +183,7 @@ export function createApiDependencies(
       audit: auditRepository,
       crm: crmRepository,
       conversations: conversationRepository,
+      replyDrafts: replyDraftRepository,
     },
     services: {
       identity: identityService,

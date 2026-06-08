@@ -122,6 +122,20 @@ enum AiDraftStatus {
   FAILED
 }
 
+enum ReplyDraftSource {
+  AI
+  SYSTEM
+  OPERATOR
+}
+
+enum ReplyDraftStatus {
+  PENDING_REVIEW
+  EDITED
+  APPROVED
+  DISCARDED
+  SENT
+}
+
 // ===========================================================================
 // Models — Identity Domain
 // ===========================================================================
@@ -190,6 +204,7 @@ model Business {
   customerContactMethods CustomerContactMethod[]
   conversations          Conversation[]
   conversationMessages   Message[]
+  replyDrafts            ReplyDraft[]
 
   @@index([status])
   @@index([createdByUserId])
@@ -354,6 +369,7 @@ model Conversation {
   customer     Customer? @relation(fields: [customerId], references: [id])
   assignedUser User?     @relation("ConversationAssignee", fields: [assignedUserId], references: [id])
   messages     Message[]
+  replyDrafts  ReplyDraft[]
 
   @@index([businessId, status])
   @@index([businessId, createdAt])
@@ -388,4 +404,36 @@ model Message {
   @@index([senderUserId])
   @@index([senderCustomerId])
   @@map("messages")
+}
+
+// ===========================================================================
+// Models — Reply Drafts Domain
+// ===========================================================================
+
+model ReplyDraft {
+  id               String           @id @default(uuid()) @db.Uuid
+  businessId       String           @map("business_id") @db.Uuid
+  conversationId   String           @map("conversation_id") @db.Uuid
+  sourceMessageId  String?          @map("source_message_id") @db.Uuid
+  createdByUserId  String?          @map("created_by_user_id") @db.Uuid
+  source           ReplyDraftSource @default(SYSTEM)
+  status           ReplyDraftStatus @default(PENDING_REVIEW)
+  draftText        String           @map("draft_text") @db.Text
+  originalText     String?          @map("original_text") @db.Text
+  reviewedByUserId String?          @map("reviewed_by_user_id") @db.Uuid
+  reviewedAt       DateTime?        @map("reviewed_at")
+  sentMessageId    String?          @map("sent_message_id") @db.Uuid
+  modelProvider    String?          @map("model_provider")
+  modelName        String?          @map("model_name")
+  promptVersion    String?          @map("prompt_version")
+  createdAt        DateTime         @default(now()) @map("created_at")
+  updatedAt        DateTime         @updatedAt @map("updated_at")
+
+  business     Business     @relation(fields: [businessId], references: [id])
+  conversation Conversation @relation(fields: [conversationId], references: [id])
+
+  @@index([businessId, status])
+  @@index([conversationId, status])
+  @@index([businessId, createdAt])
+  @@map("reply_drafts")
 }

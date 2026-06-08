@@ -725,3 +725,184 @@ describe('Prisma Schema — R2 Migration RLS', () => {
     );
   });
 });
+
+// ---------------------------------------------------------------------------
+// Reply Drafts Domain model tests
+// ---------------------------------------------------------------------------
+
+describe('Prisma Schema — Reply Drafts Domain', () => {
+  // Enums
+  it('defines ReplyDraftSource enum with AI, SYSTEM, OPERATOR', () => {
+    expect(enumExists('ReplyDraftSource')).toBe(true);
+    expect(enumHasValue('ReplyDraftSource', 'AI')).toBe(true);
+    expect(enumHasValue('ReplyDraftSource', 'SYSTEM')).toBe(true);
+    expect(enumHasValue('ReplyDraftSource', 'OPERATOR')).toBe(true);
+  });
+
+  it('defines ReplyDraftStatus enum with all lifecycle values', () => {
+    expect(enumExists('ReplyDraftStatus')).toBe(true);
+    expect(enumHasValue('ReplyDraftStatus', 'PENDING_REVIEW')).toBe(true);
+    expect(enumHasValue('ReplyDraftStatus', 'EDITED')).toBe(true);
+    expect(enumHasValue('ReplyDraftStatus', 'APPROVED')).toBe(true);
+    expect(enumHasValue('ReplyDraftStatus', 'DISCARDED')).toBe(true);
+    expect(enumHasValue('ReplyDraftStatus', 'SENT')).toBe(true);
+  });
+
+  // Model existence
+  it('defines ReplyDraft model', () => {
+    expect(modelExists('ReplyDraft')).toBe(true);
+  });
+
+  // Required fields
+  it('ReplyDraft has required fields', () => {
+    const model = schema.match(/model\s+ReplyDraft\s*\{([\s\S]+?)\}/);
+    expect(model).not.toBeNull();
+    const body = model![1];
+    expect(body).toContain('business_id');
+    expect(body).toContain('conversation_id');
+    expect(body).toContain('source_message_id');
+    expect(body).toContain('created_by_user_id');
+    expect(body).toContain('draft_text');
+    expect(body).toContain('original_text');
+    expect(body).toContain('reviewed_by_user_id');
+    expect(body).toContain('reviewed_at');
+    expect(body).toContain('sent_message_id');
+    expect(body).toContain('model_provider');
+    expect(body).toContain('model_name');
+    expect(body).toContain('prompt_version');
+    expect(body).toContain('created_at');
+    expect(body).toContain('updated_at');
+  });
+
+  // Table mapping
+  it('ReplyDraft maps to reply_drafts table', () => {
+    const model = schema.match(/model\s+ReplyDraft\s*\{([\s\S]+?)\}/);
+    expect(model).not.toBeNull();
+    expect(model![1]).toContain('@@map("reply_drafts")');
+  });
+
+  // Indexes
+  it('ReplyDraft has business scoping indexes', () => {
+    const model = schema.match(/model\s+ReplyDraft\s*\{([\s\S]+?)\}/);
+    expect(model).not.toBeNull();
+    expect(model![1]).toContain('@@index([businessId, status])');
+    expect(model![1]).toContain('@@index([conversationId, status])');
+    expect(model![1]).toContain('@@index([businessId, createdAt])');
+  });
+
+  // Relations
+  it('ReplyDraft has Business relation', () => {
+    const model = schema.match(/model\s+ReplyDraft\s*\{([\s\S]+?)\}/);
+    expect(model).not.toBeNull();
+    expect(model![1]).toContain('Business');
+    expect(model![1]).toContain('fields: [businessId]');
+  });
+
+  it('ReplyDraft has Conversation relation', () => {
+    const model = schema.match(/model\s+ReplyDraft\s*\{([\s\S]+?)\}/);
+    expect(model).not.toBeNull();
+    expect(model![1]).toContain('Conversation');
+    expect(model![1]).toContain('fields: [conversationId]');
+  });
+
+  it('Business has replyDrafts relation', () => {
+    const model = schema.match(/model\s+Business\s*\{([\s\S]+?)\}/);
+    expect(model).not.toBeNull();
+    expect(model![1]).toContain('replyDrafts');
+    expect(model![1]).toContain('ReplyDraft[]');
+  });
+
+  it('Conversation has replyDrafts relation', () => {
+    const model = schema.match(/model\s+Conversation\s*\{([\s\S]+?)\}/);
+    expect(model).not.toBeNull();
+    expect(model![1]).toContain('replyDrafts');
+    expect(model![1]).toContain('ReplyDraft[]');
+  });
+
+  // UUID primary key
+  it('ReplyDraft uses UUID primary key', () => {
+    const model = schema.match(/model\s+ReplyDraft\s*\{([\s\S]+?)\}/);
+    expect(model).not.toBeNull();
+    expect(model![1]).toContain('@db.Uuid');
+    expect(model![1]).toContain('@default(uuid())');
+  });
+
+  // draftText is Text type (not varchar)
+  it('ReplyDraft.draftText uses @db.Text', () => {
+    const model = schema.match(/model\s+ReplyDraft\s*\{([\s\S]+?)\}/);
+    expect(model).not.toBeNull();
+    const draftTextLine = model![1].match(/^\s+draftText\s+.*/m);
+    expect(draftTextLine).not.toBeNull();
+    expect(draftTextLine![0]).toContain('@db.Text');
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Reply Drafts Migration tests
+// ---------------------------------------------------------------------------
+
+describe('Prisma Schema — Reply Drafts Migration', () => {
+  const migrationPath = path.resolve(
+    __dirname,
+    '../../prisma/migrations/20260608_add_reply_drafts/migration.sql',
+  );
+  const migrationSql = fs.readFileSync(migrationPath, 'utf-8');
+
+  it('migration file exists', () => {
+    expect(fs.existsSync(migrationPath)).toBe(true);
+  });
+
+  it('migration creates ReplyDraftSource enum', () => {
+    expect(migrationSql).toContain('"ReplyDraftSource"');
+    expect(migrationSql).toContain("'AI'");
+    expect(migrationSql).toContain("'SYSTEM'");
+    expect(migrationSql).toContain("'OPERATOR'");
+  });
+
+  it('migration creates ReplyDraftStatus enum', () => {
+    expect(migrationSql).toContain('"ReplyDraftStatus"');
+    expect(migrationSql).toContain("'PENDING_REVIEW'");
+    expect(migrationSql).toContain("'EDITED'");
+    expect(migrationSql).toContain("'APPROVED'");
+    expect(migrationSql).toContain("'DISCARDED'");
+    expect(migrationSql).toContain("'SENT'");
+  });
+
+  it('migration creates reply_drafts table', () => {
+    expect(migrationSql).toContain('"reply_drafts"');
+  });
+
+  it('migration creates business_id FK', () => {
+    expect(migrationSql).toContain('reply_drafts_business_id_fkey');
+  });
+
+  it('migration creates conversation_id FK', () => {
+    expect(migrationSql).toContain('reply_drafts_conversation_id_fkey');
+  });
+
+  it('migration creates business+status index', () => {
+    expect(migrationSql).toContain('reply_drafts_business_id_status_idx');
+  });
+
+  it('migration creates conversation+status index', () => {
+    expect(migrationSql).toContain('reply_drafts_conversation_id_status_idx');
+  });
+
+  it('migration creates business+createdAt index', () => {
+    expect(migrationSql).toContain('reply_drafts_business_id_created_at_idx');
+  });
+
+  it('migration enables RLS on reply_drafts table', () => {
+    expect(migrationSql).toContain(
+      'ALTER TABLE "reply_drafts" ENABLE ROW LEVEL SECURITY',
+    );
+  });
+
+  it('migration creates draft_text as TEXT not VARCHAR', () => {
+    expect(migrationSql).toContain('"draft_text" TEXT NOT NULL');
+  });
+
+  it('migration uses UUID for id column', () => {
+    expect(migrationSql).toContain('"id" UUID NOT NULL');
+  });
+});
