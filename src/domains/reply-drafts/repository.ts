@@ -13,6 +13,8 @@ import type {
   ReplyDraftDashboardItem,
   CreateSystemDraftInput,
   GenerateStubDraftResult,
+  DiscardDraftInput,
+  DiscardDraftResult,
 } from './types';
 
 // ---------------------------------------------------------------------------
@@ -36,7 +38,7 @@ export interface ReplyDraftDashboardRecord {
   };
 }
 
-/** Raw reply draft record from create/find operations */
+/** Raw reply draft record from create/find/update operations */
 export interface ReplyDraftRecord {
   id: string;
   businessId: string;
@@ -44,7 +46,10 @@ export interface ReplyDraftRecord {
   source: ReplyDraftSourceValue;
   status: ReplyDraftStatusValue;
   draftText: string;
+  reviewedByUserId: string | null;
+  reviewedAt: Date | null;
   createdAt: Date;
+  updatedAt: Date;
 }
 
 // ---------------------------------------------------------------------------
@@ -76,10 +81,14 @@ export interface ReplyDraftRepositoryDb {
         };
       };
     }): Promise<(ReplyDraftDashboardRecord | ReplyDraftRecord)[]>;
+    findUnique(args: {
+      where: { id: string };
+    }): Promise<ReplyDraftRecord | null>;
     count(args: {
       where: {
         businessId: string;
         status: { in: ReplyDraftStatusValue[] };
+        conversationId?: string;
       };
     }): Promise<number>;
     create(args: {
@@ -91,6 +100,14 @@ export interface ReplyDraftRepositoryDb {
         status: ReplyDraftStatusValue;
         draftText: string;
         originalText: string;
+      };
+    }): Promise<ReplyDraftRecord>;
+    update(args: {
+      where: { id: string };
+      data: {
+        status: ReplyDraftStatusValue;
+        reviewedByUserId: string;
+        reviewedAt: Date;
       };
     }): Promise<ReplyDraftRecord>;
   };
@@ -141,6 +158,36 @@ export interface ReplyDraftRepository {
   generateOrReuseStubDraft(
     input: CreateSystemDraftInput,
   ): Promise<ActionResult<GenerateStubDraftResult>>;
+
+  /**
+   * Finds a draft by ID, scoped strictly by businessId and conversationId.
+   * Returns null if not found or scope mismatch.
+   */
+  findByBusinessConversationAndId(
+    businessId: string,
+    conversationId: string,
+    draftId: string,
+  ): Promise<ActionResult<ReplyDraftRecord | null>>;
+
+  /**
+   * Discards a draft (PENDING_REVIEW | EDITED → DISCARDED).
+   * Sets reviewedByUserId and reviewedAt.
+   * Returns `{ discarded: true }` when status was transitioned.
+   * Returns `{ discarded: false }` when draft was already DISCARDED (idempotent).
+   * Rejects APPROVED / SENT with an error.
+   */
+  discardDraft(
+    input: DiscardDraftInput,
+  ): Promise<ActionResult<DiscardDraftResult>>;
+
+  /**
+   * Counts reviewable (PENDING_REVIEW | EDITED) drafts for a conversation.
+   * Used for aiDraftStatus reconciliation after discard.
+   */
+  countReviewableByConversation(
+    businessId: string,
+    conversationId: string,
+  ): Promise<ActionResult<number>>;
 }
 
 // ---------------------------------------------------------------------------
@@ -307,6 +354,105 @@ export function createReplyDraftRepository(
             createdAt: created.createdAt.toISOString(),
           },
         });
+      } catch {
+        return err(REPO_ERROR_CODE, REPO_ERROR_MSG);
+      }
+    },
+
+    async findByBusinessConversationAndId(businessId, conversationId, draftId) {
+      try {
+        const record = await db.replyDraft.findUnique({
+          where: { id: draftId },
+        });
+        if (!record) return ok(null);
+        // Scope guard: reject if record doesn't belong to the right business/conversation
+        if (record.businessId !== businessId || record.conversationId !== conversationId) {
+          return ok(null);
+        }
+        return ok(record);
+      } catch {
+        return err(REPO_ERROR_CODE, REPO_ERROR_MSG);
+      }
+    },
+
+    async discardDraft(input) {
+      try {
+        // Fetch draft with scope guard
+        const findResult = await this.findByBusinessConversationAndId(
+          input.businessId,
+          input.conversationId,
+          input.draftId,
+        );
+        if (!findResult.ok) {
+          return err(findResult.error.code, findResult.error.message);
+        }
+        if (!findResult.data) {
+          return err('DRAFT_NOT_FOUND', 'Draft not found');
+        }
+
+        const draft = findResult.data;
+
+        // Already discarded → idempotent success
+        if (draft.status === 'DISCARDED') {
+          return ok({
+            discarded: false,
+            previousStatus: null,
+            draft: {
+              id: draft.id,
+              conversationId: draft.conversationId,
+              status: draft.status,
+              source: draft.source,
+              reviewedAt: draft.reviewedAt?.toISOString() ?? null,
+              reviewedByUserId: draft.reviewedByUserId,
+              updatedAt: draft.updatedAt.toISOString(),
+            },
+          });
+        }
+
+        // APPROVED or SENT → reject
+        if (draft.status === 'APPROVED' || draft.status === 'SENT') {
+          return err('DRAFT_NOT_DISCARDABLE', 'Cannot discard an approved or sent draft');
+        }
+
+        // PENDING_REVIEW or EDITED → transition to DISCARDED
+        const now = new Date();
+        const updated = await db.replyDraft.update({
+          where: { id: input.draftId },
+          data: {
+            status: 'DISCARDED',
+            reviewedByUserId: input.reviewedByUserId,
+            reviewedAt: now,
+          },
+        });
+
+        return ok({
+          discarded: true,
+          previousStatus: draft.status,
+          draft: {
+            id: updated.id,
+            conversationId: updated.conversationId,
+            status: updated.status,
+            source: updated.source,
+            reviewedAt: updated.reviewedAt?.toISOString() ?? null,
+            reviewedByUserId: updated.reviewedByUserId,
+            updatedAt: updated.updatedAt.toISOString(),
+          },
+        });
+      } catch {
+        return err(REPO_ERROR_CODE, REPO_ERROR_MSG);
+      }
+    },
+
+    async countReviewableByConversation(businessId, conversationId) {
+      try {
+        const count = await db.replyDraft.count({
+          where: {
+            businessId,
+            conversationId,
+            status: { in: REVIEWABLE_STATUSES },
+          },
+        });
+        return ok(count);
       } catch {
         return err(REPO_ERROR_CODE, REPO_ERROR_MSG);
       }
