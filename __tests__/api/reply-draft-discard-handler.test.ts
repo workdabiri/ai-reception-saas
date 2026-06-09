@@ -47,6 +47,7 @@ vi.mock('@/app/api/_shared/composition', () => ({
       replyDrafts: {
         discardDraft: vi.fn().mockResolvedValue(ok({
           discarded: true,
+          previousStatus: 'PENDING_REVIEW',
           draft: {
             id: DRAFT_ID,
             conversationId: CONV_ID,
@@ -100,6 +101,7 @@ function mockDeps(): DiscardDraftHandlerDeps & {
     replyDraftRepository: {
       discardDraft: vi.fn().mockResolvedValue(ok({
         discarded: true,
+        previousStatus: 'PENDING_REVIEW',
         draft: {
           id: DRAFT_ID,
           conversationId: CONV_ID,
@@ -283,6 +285,7 @@ describe('Discard Draft Handler', () => {
     const d = mockDeps();
     d.replyDraftRepository.discardDraft.mockResolvedValue(ok({
       discarded: true,
+      previousStatus: 'PENDING_REVIEW',
       draft: {
         id: DRAFT_ID,
         conversationId: CONV_ID,
@@ -308,6 +311,7 @@ describe('Discard Draft Handler', () => {
     const d = mockDeps();
     d.replyDraftRepository.discardDraft.mockResolvedValue(ok({
       discarded: false,
+      previousStatus: null,
       draft: {
         id: DRAFT_ID,
         conversationId: CONV_ID,
@@ -409,8 +413,9 @@ describe('Discard Draft Handler', () => {
   // Audit
   // -------------------------------------------------------------------------
 
-  it('emits audit event on successful discard', async () => {
+  it('PENDING_REVIEW discard records accurate previousStatus in audit metadata', async () => {
     const d = mockDeps();
+    // Default mock returns previousStatus: 'PENDING_REVIEW'
     const h = createDiscardDraftHandler({ ...d, resolveTenantContext: okTenant() });
     await h(new Request('http://x', { method: 'POST' }), P);
     expect(d.auditService.createAuditEvent).toHaveBeenCalledWith(
@@ -422,6 +427,41 @@ describe('Discard Draft Handler', () => {
         targetType: 'reply_draft',
         targetId: DRAFT_ID,
         result: 'SUCCESS',
+        metadata: expect.objectContaining({
+          conversationId: CONV_ID,
+          previousStatus: 'PENDING_REVIEW',
+          newStatus: 'DISCARDED',
+          discarded: true,
+        }),
+      }),
+    );
+  });
+
+  it('EDITED discard records accurate previousStatus in audit metadata', async () => {
+    const d = mockDeps();
+    d.replyDraftRepository.discardDraft.mockResolvedValue(ok({
+      discarded: true,
+      previousStatus: 'EDITED',
+      draft: {
+        id: DRAFT_ID,
+        conversationId: CONV_ID,
+        status: 'DISCARDED',
+        source: 'SYSTEM',
+        reviewedAt: NOW.toISOString(),
+        reviewedByUserId: USER_ID,
+        updatedAt: NOW.toISOString(),
+      },
+    }));
+    const h = createDiscardDraftHandler({ ...d, resolveTenantContext: okTenant() });
+    await h(new Request('http://x', { method: 'POST' }), P);
+    expect(d.auditService.createAuditEvent).toHaveBeenCalledWith(
+      expect.objectContaining({
+        metadata: expect.objectContaining({
+          conversationId: CONV_ID,
+          previousStatus: 'EDITED',
+          newStatus: 'DISCARDED',
+          discarded: true,
+        }),
       }),
     );
   });
@@ -430,6 +470,7 @@ describe('Discard Draft Handler', () => {
     const d = mockDeps();
     d.replyDraftRepository.discardDraft.mockResolvedValue(ok({
       discarded: false,
+      previousStatus: null,
       draft: {
         id: DRAFT_ID,
         conversationId: CONV_ID,
@@ -719,6 +760,7 @@ describe('ReplyDraft Repository — Discard', () => {
     expect(result.ok).toBe(true);
     if (result.ok) {
       expect(result.data.discarded).toBe(true);
+      expect(result.data.previousStatus).toBe('PENDING_REVIEW');
       expect(result.data.draft.status).toBe('DISCARDED');
       expect(result.data.draft.reviewedByUserId).toBe(USER_ID);
     }
@@ -746,6 +788,7 @@ describe('ReplyDraft Repository — Discard', () => {
     expect(result.ok).toBe(true);
     if (result.ok) {
       expect(result.data.discarded).toBe(true);
+      expect(result.data.previousStatus).toBe('EDITED');
     }
   });
 
@@ -762,6 +805,7 @@ describe('ReplyDraft Repository — Discard', () => {
     expect(result.ok).toBe(true);
     if (result.ok) {
       expect(result.data.discarded).toBe(false);
+      expect(result.data.previousStatus).toBeNull();
       expect(result.data.draft.status).toBe('DISCARDED');
     }
     expect(db.replyDraft.update).not.toHaveBeenCalled();

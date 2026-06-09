@@ -112,6 +112,8 @@ export interface DiscardDraftInput {
 /** Result of discard operation */
 export interface DiscardDraftResult {
   discarded: boolean;
+  /** The draft status before transition. Set when discarded=true, null on idempotent path. */
+  previousStatus: ReplyDraftStatusValue | null;
   draft: {
     id: string;
     conversationId: string;

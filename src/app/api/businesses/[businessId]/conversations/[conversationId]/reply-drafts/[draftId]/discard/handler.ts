@@ -228,9 +228,9 @@ export function createDiscardDraftHandler(
           result: 'SUCCESS',
           metadata: {
             conversationId,
-            previousStatus: discardResult.data.draft.status === 'DISCARDED'
-              ? 'DISCARDED'
-              : 'transitioned',
+            previousStatus: discardResult.data.previousStatus,
+            newStatus: 'DISCARDED',
+            discarded: discardResult.data.discarded,
           },
         });
       } catch {

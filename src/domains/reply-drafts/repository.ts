@@ -396,6 +396,7 @@ export function createReplyDraftRepository(
         if (draft.status === 'DISCARDED') {
           return ok({
             discarded: false,
+            previousStatus: null,
             draft: {
               id: draft.id,
               conversationId: draft.conversationId,
@@ -426,6 +427,7 @@ export function createReplyDraftRepository(
 
         return ok({
           discarded: true,
+          previousStatus: draft.status,
           draft: {
             id: updated.id,
             conversationId: updated.conversationId,
