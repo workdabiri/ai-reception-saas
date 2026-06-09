@@ -170,6 +170,26 @@ git log --oneline -5
 
 ---
 
+## Schema Migration Gate
+
+Any PR that modifies `prisma/schema.prisma` or adds files under `prisma/migrations/` is **L4** regardless of other scope considerations.
+
+**Before merge:**
+
+- Migration file reviewed — SQL is additive or destructive operations have explicit CTO approval.
+- PR body includes a production migration plan (migration name, affected tables/enums, deploy steps, rollback note).
+
+**After merge — production is NOT healthy until:**
+
+- `prisma migrate deploy` has run against the production database (using the **Direct Database URL**, not the pooler).
+- `prisma migrate status` shows "Database schema is up to date".
+- Vercel backend logs show zero Prisma schema/table errors for the affected model.
+- Affected endpoint/UI smoke passes.
+
+> **Full policy and commands:** [docs/engineering/production-migrations.md](production-migrations.md)
+
+---
+
 ## Failure Rule
 
 If any CLI validation or smoke test fails:
