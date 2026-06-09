@@ -19,6 +19,8 @@ export {
   type GenerateStubDraftResult,
   type DiscardDraftInput,
   type DiscardDraftResult,
+  type EditDraftInput,
+  type EditDraftResult,
 } from './types';
 
 export {

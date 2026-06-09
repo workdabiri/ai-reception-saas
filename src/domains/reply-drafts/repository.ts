@@ -15,6 +15,8 @@ import type {
   GenerateStubDraftResult,
   DiscardDraftInput,
   DiscardDraftResult,
+  EditDraftInput,
+  EditDraftResult,
 } from './types';
 
 // ---------------------------------------------------------------------------
@@ -46,6 +48,7 @@ export interface ReplyDraftRecord {
   source: ReplyDraftSourceValue;
   status: ReplyDraftStatusValue;
   draftText: string;
+  originalText: string | null;
   reviewedByUserId: string | null;
   reviewedAt: Date | null;
   createdAt: Date;
@@ -104,11 +107,16 @@ export interface ReplyDraftRepositoryDb {
     }): Promise<ReplyDraftRecord>;
     update(args: {
       where: { id: string };
-      data: {
-        status: ReplyDraftStatusValue;
-        reviewedByUserId: string;
-        reviewedAt: Date;
-      };
+      data:
+        | {
+            status: ReplyDraftStatusValue;
+            reviewedByUserId: string;
+            reviewedAt: Date;
+          }
+        | {
+            status: ReplyDraftStatusValue;
+            draftText: string;
+          };
     }): Promise<ReplyDraftRecord>;
   };
 }
@@ -179,6 +187,17 @@ export interface ReplyDraftRepository {
   discardDraft(
     input: DiscardDraftInput,
   ): Promise<ActionResult<DiscardDraftResult>>;
+
+  /**
+   * Edits a reviewable draft (PENDING_REVIEW | EDITED → EDITED).
+   * Updates draftText and sets status to EDITED.
+   * Preserves originalText and source.
+   * Does NOT set reviewedAt/reviewedByUserId (reserved for approve/discard/send).
+   * Rejects DISCARDED / APPROVED / SENT with an error.
+   */
+  editDraft(
+    input: EditDraftInput,
+  ): Promise<ActionResult<EditDraftResult>>;
 
   /**
    * Counts reviewable (PENDING_REVIEW | EDITED) drafts for a conversation.
@@ -435,6 +454,60 @@ export function createReplyDraftRepository(
             source: updated.source,
             reviewedAt: updated.reviewedAt?.toISOString() ?? null,
             reviewedByUserId: updated.reviewedByUserId,
+            updatedAt: updated.updatedAt.toISOString(),
+          },
+        });
+      } catch {
+        return err(REPO_ERROR_CODE, REPO_ERROR_MSG);
+      }
+    },
+
+    async editDraft(input) {
+      try {
+        // Fetch draft with scope guard
+        const findResult = await this.findByBusinessConversationAndId(
+          input.businessId,
+          input.conversationId,
+          input.draftId,
+        );
+        if (!findResult.ok) {
+          return err(findResult.error.code, findResult.error.message);
+        }
+        if (!findResult.data) {
+          return err('DRAFT_NOT_FOUND', 'Draft not found');
+        }
+
+        const draft = findResult.data;
+
+        // Only PENDING_REVIEW or EDITED can be edited
+        if (draft.status !== 'PENDING_REVIEW' && draft.status !== 'EDITED') {
+          return err('DRAFT_NOT_EDITABLE', 'Cannot edit a discarded, approved, or sent draft');
+        }
+
+        const previousStatus = draft.status;
+        const previousTextLength = draft.draftText.length;
+
+        // Update draftText and set status to EDITED
+        const updated = await db.replyDraft.update({
+          where: { id: input.draftId },
+          data: {
+            status: 'EDITED',
+            draftText: input.draftText,
+          },
+        });
+
+        return ok({
+          previousStatus,
+          previousTextLength,
+          newTextLength: input.draftText.length,
+          draft: {
+            id: updated.id,
+            conversationId: updated.conversationId,
+            status: updated.status,
+            source: updated.source,
+            draftText: updated.draftText,
+            draftTextPreview: truncatePreview(updated.draftText),
+            originalText: draft.originalText ?? null,
             updatedAt: updated.updatedAt.toISOString(),
           },
         });

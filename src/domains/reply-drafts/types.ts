@@ -125,3 +125,35 @@ export interface DiscardDraftResult {
   };
 }
 
+// ---------------------------------------------------------------------------
+// Edit types
+// ---------------------------------------------------------------------------
+
+/** Input for editing a reply draft */
+export interface EditDraftInput {
+  businessId: string;
+  conversationId: string;
+  draftId: string;
+  draftText: string;
+}
+
+/** Result of edit operation */
+export interface EditDraftResult {
+  /** The draft status before edit (PENDING_REVIEW or EDITED). */
+  previousStatus: ReplyDraftStatusValue;
+  /** Length of draftText before edit. */
+  previousTextLength: number;
+  /** Length of draftText after edit. */
+  newTextLength: number;
+  draft: {
+    id: string;
+    conversationId: string;
+    status: ReplyDraftStatusValue;
+    source: ReplyDraftSourceValue;
+    draftText: string;
+    draftTextPreview: string;
+    originalText: string | null;
+    updatedAt: string;
+  };
+}
+
