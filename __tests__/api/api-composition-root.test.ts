@@ -281,6 +281,7 @@ function createMockPrisma(): PrismaCompatibleClient {
     message: messageDelegate,
     replyDraft: {
       findMany: () => Promise.resolve([]),
+      findUnique: () => Promise.resolve(null),
       count: () => Promise.resolve(0),
       create: () => Promise.resolve({
         id: 'mock',
@@ -289,7 +290,22 @@ function createMockPrisma(): PrismaCompatibleClient {
         source: 'SYSTEM' as const,
         status: 'PENDING_REVIEW' as const,
         draftText: 'mock',
+        reviewedByUserId: null,
+        reviewedAt: null,
         createdAt: new Date(),
+        updatedAt: new Date(),
+      }),
+      update: () => Promise.resolve({
+        id: 'mock',
+        businessId: 'mock',
+        conversationId: 'mock',
+        source: 'SYSTEM' as const,
+        status: 'DISCARDED' as const,
+        draftText: 'mock',
+        reviewedByUserId: 'mock-user',
+        reviewedAt: new Date(),
+        createdAt: new Date(),
+        updatedAt: new Date(),
       }),
     },
   };

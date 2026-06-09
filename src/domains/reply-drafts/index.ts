@@ -17,6 +17,8 @@ export {
   type ReplyDraftDashboardItem,
   type CreateSystemDraftInput,
   type GenerateStubDraftResult,
+  type DiscardDraftInput,
+  type DiscardDraftResult,
 } from './types';
 
 export {

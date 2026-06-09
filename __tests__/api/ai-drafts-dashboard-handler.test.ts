@@ -359,8 +359,10 @@ describe('ReplyDraft Repository', () => {
     const db = {
       replyDraft: {
         count: vi.fn().mockResolvedValue(0),
-        create: vi.fn().mockResolvedValue({ id: "mock", businessId: "mock", conversationId: "mock", source: "SYSTEM", status: "PENDING_REVIEW", draftText: "mock", createdAt: new Date() }),
+        create: vi.fn().mockResolvedValue({ id: "mock", businessId: "mock", conversationId: "mock", source: "SYSTEM", status: "PENDING_REVIEW", draftText: "mock", reviewedByUserId: null, reviewedAt: null, createdAt: new Date(), updatedAt: new Date() }),
         findMany: vi.fn().mockResolvedValue([]),
+        findUnique: vi.fn().mockResolvedValue(null),
+        update: vi.fn().mockResolvedValue(null),
       },
     };
     const repo = createReplyDraftRepository(db);
@@ -377,8 +379,10 @@ describe('ReplyDraft Repository', () => {
     const db = {
       replyDraft: {
         count: vi.fn().mockResolvedValue(0),
-        create: vi.fn().mockResolvedValue({ id: "mock", businessId: "mock", conversationId: "mock", source: "SYSTEM", status: "PENDING_REVIEW", draftText: "mock", createdAt: new Date() }),
+        create: vi.fn().mockResolvedValue({ id: "mock", businessId: "mock", conversationId: "mock", source: "SYSTEM", status: "PENDING_REVIEW", draftText: "mock", reviewedByUserId: null, reviewedAt: null, createdAt: new Date(), updatedAt: new Date() }),
         findMany: vi.fn().mockResolvedValue([]),
+        findUnique: vi.fn().mockResolvedValue(null),
+        update: vi.fn().mockResolvedValue(null),
       },
     };
     const repo = createReplyDraftRepository(db);
@@ -398,8 +402,10 @@ describe('ReplyDraft Repository', () => {
     const db = {
       replyDraft: {
         count: vi.fn().mockResolvedValue(0),
-        create: vi.fn().mockResolvedValue({ id: "mock", businessId: "mock", conversationId: "mock", source: "SYSTEM", status: "PENDING_REVIEW", draftText: "mock", createdAt: new Date() }),
+        create: vi.fn().mockResolvedValue({ id: "mock", businessId: "mock", conversationId: "mock", source: "SYSTEM", status: "PENDING_REVIEW", draftText: "mock", reviewedByUserId: null, reviewedAt: null, createdAt: new Date(), updatedAt: new Date() }),
         findMany: vi.fn().mockResolvedValue([]),
+        findUnique: vi.fn().mockResolvedValue(null),
+        update: vi.fn().mockResolvedValue(null),
       },
     };
     const repo = createReplyDraftRepository(db);
@@ -432,6 +438,8 @@ describe('ReplyDraft Repository', () => {
         count: vi.fn().mockResolvedValue(1),
         create: vi.fn(),
         findMany: vi.fn().mockResolvedValue([mockRecord]),
+        findUnique: vi.fn().mockResolvedValue(null),
+        update: vi.fn().mockResolvedValue(null),
       },
     };
     const repo = createReplyDraftRepository(db);
@@ -472,6 +480,8 @@ describe('ReplyDraft Repository', () => {
         count: vi.fn().mockResolvedValue(1),
         create: vi.fn(),
         findMany: vi.fn().mockResolvedValue([mockRecord]),
+        findUnique: vi.fn().mockResolvedValue(null),
+        update: vi.fn().mockResolvedValue(null),
       },
     };
     const repo = createReplyDraftRepository(db);
@@ -504,6 +514,8 @@ describe('ReplyDraft Repository', () => {
         count: vi.fn().mockResolvedValue(1),
         create: vi.fn(),
         findMany: vi.fn().mockResolvedValue([mockRecord]),
+        findUnique: vi.fn().mockResolvedValue(null),
+        update: vi.fn().mockResolvedValue(null),
       },
     };
     const repo = createReplyDraftRepository(db);
@@ -537,6 +549,8 @@ describe('ReplyDraft Repository', () => {
         count: vi.fn().mockResolvedValue(1),
         create: vi.fn(),
         findMany: vi.fn().mockResolvedValue([mockRecord]),
+        findUnique: vi.fn().mockResolvedValue(null),
+        update: vi.fn().mockResolvedValue(null),
       },
     };
     const repo = createReplyDraftRepository(db);
@@ -554,6 +568,8 @@ describe('ReplyDraft Repository', () => {
         count: vi.fn().mockRejectedValue(new Error('db fail')),
         create: vi.fn(),
         findMany: vi.fn().mockRejectedValue(new Error('db fail')),
+        findUnique: vi.fn().mockResolvedValue(null),
+        update: vi.fn().mockResolvedValue(null),
       },
     };
     const repo = createReplyDraftRepository(db);
@@ -569,8 +585,10 @@ describe('ReplyDraft Repository', () => {
     const db = {
       replyDraft: {
         count: vi.fn().mockResolvedValue(0),
-        create: vi.fn().mockResolvedValue({ id: "mock", businessId: "mock", conversationId: "mock", source: "SYSTEM", status: "PENDING_REVIEW", draftText: "mock", createdAt: new Date() }),
+        create: vi.fn().mockResolvedValue({ id: "mock", businessId: "mock", conversationId: "mock", source: "SYSTEM", status: "PENDING_REVIEW", draftText: "mock", reviewedByUserId: null, reviewedAt: null, createdAt: new Date(), updatedAt: new Date() }),
         findMany: vi.fn().mockResolvedValue([]),
+        findUnique: vi.fn().mockResolvedValue(null),
+        update: vi.fn().mockResolvedValue(null),
       },
     };
     const repo = createReplyDraftRepository(db);

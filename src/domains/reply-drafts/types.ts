@@ -96,3 +96,30 @@ export interface GenerateStubDraftResult {
     createdAt: string;
   };
 }
+
+// ---------------------------------------------------------------------------
+// Discard types
+// ---------------------------------------------------------------------------
+
+/** Input for discarding a reply draft */
+export interface DiscardDraftInput {
+  businessId: string;
+  conversationId: string;
+  draftId: string;
+  reviewedByUserId: string;
+}
+
+/** Result of discard operation */
+export interface DiscardDraftResult {
+  discarded: boolean;
+  draft: {
+    id: string;
+    conversationId: string;
+    status: ReplyDraftStatusValue;
+    source: ReplyDraftSourceValue;
+    reviewedAt: string | null;
+    reviewedByUserId: string | null;
+    updatedAt: string;
+  };
+}
+

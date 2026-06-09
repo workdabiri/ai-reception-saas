@@ -492,13 +492,16 @@ describe('ReplyDraft Repository — Generate', () => {
   function mockDb(): ReplyDraftRepositoryDb & {
     replyDraft: {
       findMany: ReturnType<typeof vi.fn>;
+      findUnique: ReturnType<typeof vi.fn>;
       count: ReturnType<typeof vi.fn>;
       create: ReturnType<typeof vi.fn>;
+      update: ReturnType<typeof vi.fn>;
     };
   } {
     return {
       replyDraft: {
         findMany: vi.fn().mockResolvedValue([]),
+        findUnique: vi.fn().mockResolvedValue(null),
         count: vi.fn().mockResolvedValue(0),
         create: vi.fn().mockResolvedValue({
           id: DRAFT_ID,
@@ -507,8 +510,12 @@ describe('ReplyDraft Repository — Generate', () => {
           source: 'SYSTEM',
           status: 'PENDING_REVIEW',
           draftText: STUB_DRAFT_TEXT,
+          reviewedByUserId: null,
+          reviewedAt: null,
           createdAt: new Date('2026-01-01T00:00:00.000Z'),
+          updatedAt: new Date('2026-01-01T00:00:00.000Z'),
         }),
+        update: vi.fn().mockResolvedValue(null),
       },
     };
   }
