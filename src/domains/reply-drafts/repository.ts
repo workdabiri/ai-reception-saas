@@ -17,6 +17,8 @@ import type {
   DiscardDraftResult,
   EditDraftInput,
   EditDraftResult,
+  ApproveDraftInput,
+  ApproveDraftResult,
 } from './types';
 
 // ---------------------------------------------------------------------------
@@ -198,6 +200,18 @@ export interface ReplyDraftRepository {
   editDraft(
     input: EditDraftInput,
   ): Promise<ActionResult<EditDraftResult>>;
+
+  /**
+   * Approves a draft (PENDING_REVIEW | EDITED → APPROVED).
+   * Sets reviewedByUserId and reviewedAt.
+   * Returns `{ approved: true }` when status was transitioned.
+   * Returns `{ approved: false }` when draft was already APPROVED (idempotent).
+   * Rejects DISCARDED / SENT with an error.
+   * Does NOT create a Message. Does NOT call any provider.
+   */
+  approveDraft(
+    input: ApproveDraftInput,
+  ): Promise<ActionResult<ApproveDraftResult>>;
 
   /**
    * Counts reviewable (PENDING_REVIEW | EDITED) drafts for a conversation.
@@ -508,6 +522,76 @@ export function createReplyDraftRepository(
             draftText: updated.draftText,
             draftTextPreview: truncatePreview(updated.draftText),
             originalText: draft.originalText ?? null,
+            updatedAt: updated.updatedAt.toISOString(),
+          },
+        });
+      } catch {
+        return err(REPO_ERROR_CODE, REPO_ERROR_MSG);
+      }
+    },
+
+    async approveDraft(input) {
+      try {
+        // Fetch draft with scope guard
+        const findResult = await this.findByBusinessConversationAndId(
+          input.businessId,
+          input.conversationId,
+          input.draftId,
+        );
+        if (!findResult.ok) {
+          return err(findResult.error.code, findResult.error.message);
+        }
+        if (!findResult.data) {
+          return err('DRAFT_NOT_FOUND', 'Draft not found');
+        }
+
+        const draft = findResult.data;
+
+        // Already APPROVED → idempotent success
+        if (draft.status === 'APPROVED') {
+          return ok({
+            approved: false,
+            previousStatus: null,
+            draft: {
+              id: draft.id,
+              conversationId: draft.conversationId,
+              status: draft.status,
+              source: draft.source,
+              draftTextPreview: truncatePreview(draft.draftText),
+              reviewedAt: draft.reviewedAt?.toISOString() ?? null,
+              reviewedByUserId: draft.reviewedByUserId,
+              updatedAt: draft.updatedAt.toISOString(),
+            },
+          });
+        }
+
+        // DISCARDED or SENT → reject
+        if (draft.status === 'DISCARDED' || draft.status === 'SENT') {
+          return err('DRAFT_NOT_APPROVABLE', 'Cannot approve a discarded or sent draft');
+        }
+
+        // PENDING_REVIEW or EDITED → transition to APPROVED
+        const now = new Date();
+        const updated = await db.replyDraft.update({
+          where: { id: input.draftId },
+          data: {
+            status: 'APPROVED',
+            reviewedByUserId: input.reviewedByUserId,
+            reviewedAt: now,
+          },
+        });
+
+        return ok({
+          approved: true,
+          previousStatus: draft.status,
+          draft: {
+            id: updated.id,
+            conversationId: updated.conversationId,
+            status: updated.status,
+            source: updated.source,
+            draftTextPreview: truncatePreview(updated.draftText),
+            reviewedAt: updated.reviewedAt?.toISOString() ?? null,
+            reviewedByUserId: updated.reviewedByUserId,
             updatedAt: updated.updatedAt.toISOString(),
           },
         });

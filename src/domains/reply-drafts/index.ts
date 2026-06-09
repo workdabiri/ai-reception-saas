@@ -21,6 +21,8 @@ export {
   type DiscardDraftResult,
   type EditDraftInput,
   type EditDraftResult,
+  type ApproveDraftInput,
+  type ApproveDraftResult,
 } from './types';
 
 export {

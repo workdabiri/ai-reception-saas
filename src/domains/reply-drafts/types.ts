@@ -157,3 +157,31 @@ export interface EditDraftResult {
   };
 }
 
+// ---------------------------------------------------------------------------
+// Approve types
+// ---------------------------------------------------------------------------
+
+/** Input for approving a reply draft */
+export interface ApproveDraftInput {
+  businessId: string;
+  conversationId: string;
+  draftId: string;
+  reviewedByUserId: string;
+}
+
+/** Result of approve operation */
+export interface ApproveDraftResult {
+  approved: boolean;
+  /** The draft status before transition. Set when approved=true, null on idempotent path. */
+  previousStatus: ReplyDraftStatusValue | null;
+  draft: {
+    id: string;
+    conversationId: string;
+    status: ReplyDraftStatusValue;
+    source: ReplyDraftSourceValue;
+    draftTextPreview: string;
+    reviewedAt: string | null;
+    reviewedByUserId: string | null;
+    updatedAt: string;
+  };
+}
