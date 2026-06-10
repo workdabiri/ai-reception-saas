@@ -284,6 +284,66 @@ describe('Authz Permissions', () => {
     });
     expect(result.success).toBe(false);
   });
+
+  // -------------------------------------------------------------------------
+  // ai_drafts.send permission tests
+  // -------------------------------------------------------------------------
+
+  it('ai_drafts.send is a known permission', () => {
+    expect(isKnownPermission('ai_drafts.send')).toBe(true);
+  });
+
+  it('OWNER has ai_drafts.send', () => {
+    expect(hasPermission('OWNER', 'ai_drafts.send')).toBe(true);
+  });
+
+  it('ADMIN has ai_drafts.send', () => {
+    expect(hasPermission('ADMIN', 'ai_drafts.send')).toBe(true);
+  });
+
+  it('OPERATOR has ai_drafts.send', () => {
+    expect(hasPermission('OPERATOR', 'ai_drafts.send')).toBe(true);
+  });
+
+  it('VIEWER does NOT have ai_drafts.send', () => {
+    expect(hasPermission('VIEWER', 'ai_drafts.send')).toBe(false);
+  });
+
+  it('ai_drafts.send is a sensitive permission', () => {
+    expect(isSensitivePermission('ai_drafts.send')).toBe(true);
+  });
+
+  // -------------------------------------------------------------------------
+  // ai_drafts regression: existing permissions unchanged
+  // -------------------------------------------------------------------------
+
+  it('ai_drafts.read remains a known permission', () => {
+    expect(isKnownPermission('ai_drafts.read')).toBe(true);
+  });
+
+  it('ai_drafts.generate remains a known permission', () => {
+    expect(isKnownPermission('ai_drafts.generate')).toBe(true);
+  });
+
+  it('ai_drafts.approve remains a known permission', () => {
+    expect(isKnownPermission('ai_drafts.approve')).toBe(true);
+  });
+
+  it('OPERATOR retains ai_drafts.read', () => {
+    expect(hasPermission('OPERATOR', 'ai_drafts.read')).toBe(true);
+  });
+
+  it('OPERATOR retains ai_drafts.generate', () => {
+    expect(hasPermission('OPERATOR', 'ai_drafts.generate')).toBe(true);
+  });
+
+  it('OPERATOR retains ai_drafts.approve', () => {
+    expect(hasPermission('OPERATOR', 'ai_drafts.approve')).toBe(true);
+  });
+
+  it('ai_drafts.approve remains sensitive', () => {
+    expect(isSensitivePermission('ai_drafts.approve')).toBe(true);
+  });
 });
 
 // ===========================================================================

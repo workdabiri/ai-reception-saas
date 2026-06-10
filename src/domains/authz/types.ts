@@ -26,6 +26,7 @@ export const AUTHZ_PERMISSION_VALUES = [
   'ai_drafts.read',
   'ai_drafts.generate',
   'ai_drafts.approve',
+  'ai_drafts.send',
   'audit.read',
   'settings.read',
   'settings.update',

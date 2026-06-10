@@ -423,6 +423,8 @@ model ReplyDraft {
   reviewedByUserId String?          @map("reviewed_by_user_id") @db.Uuid
   reviewedAt       DateTime?        @map("reviewed_at")
   sentMessageId    String?          @map("sent_message_id") @db.Uuid
+  sentAt           DateTime?        @map("sent_at")
+  sentByUserId     String?          @map("sent_by_user_id") @db.Uuid
   modelProvider    String?          @map("model_provider")
   modelName        String?          @map("model_name")
   promptVersion    String?          @map("prompt_version")

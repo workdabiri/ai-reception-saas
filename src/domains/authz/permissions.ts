@@ -36,6 +36,7 @@ export const ROLE_PERMISSIONS: RolePermissionMap = {
     'ai_drafts.read',
     'ai_drafts.generate',
     'ai_drafts.approve',
+    'ai_drafts.send',
   ],
 
   VIEWER: [
@@ -60,6 +61,7 @@ export const SENSITIVE_PERMISSIONS: readonly AuthzPermission[] = [
   'conversations.assign',
   'conversations.close',
   'ai_drafts.approve',
+  'ai_drafts.send',
   'settings.update',
 ];
 
