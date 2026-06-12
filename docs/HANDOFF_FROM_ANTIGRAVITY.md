@@ -16,6 +16,7 @@
 | Model/tool used | Claude Opus 4.6 (Thinking) via AntiGravity IDE |
 | Production code modified | **No** |
 | Documentation files created/updated | `docs/HANDOFF_FROM_ANTIGRAVITY.md` (this file) |
+| Report scope | **Backend repo only** — see §1A for companion frontend repo |
 
 ---
 
@@ -27,13 +28,112 @@
 
 **Who it is for:** Small service-oriented businesses and their operator teams (receptionists, support agents, business owners).
 
-**Stage:** The project is in **early-to-mid MVP foundation** (Stage 0). The backend API layer has solid implementation for identity, tenancy, authz, CRM, conversations, messages, and reply drafts. There is **no frontend UI** beyond a "Hello world" placeholder. Auth.js integration is implemented and staging-verified with Google OAuth. The project has 86 merged PRs and a disciplined engineering process.
+**Stage:** The project is in **early-to-mid MVP foundation** (Stage 0). The backend API layer has solid implementation for identity, tenancy, authz, CRM, conversations, messages, and reply drafts. **This backend repo contains no frontend UI** beyond a "Hello world" placeholder — however, a separate companion frontend repo exists (see §1A). Auth.js integration is implemented and staging-verified with Google OAuth. The project has 86 merged PRs and a disciplined engineering process.
 
-**Production readiness:** **Not production-ready.** The backend API is functionally solid for its implemented domains, but: (1) No frontend UI exists, (2) AI runtime is not implemented, (3) No realtime/WebSocket support, (4) No external channel integrations, (5) 12 of 19 domain directories are empty scaffolds (the architecture describes 18 domains; `reply-drafts` is a 19th domain added outside the original domain map).
+**Production readiness:** **Not production-ready.** The backend API is functionally solid for its implemented domains, but: (1) This repo has no frontend UI (the frontend lives in a separate repo — see §1A), (2) AI runtime is not implemented, (3) No realtime/WebSocket support, (4) No external channel integrations, (5) 12 of 19 domain directories are empty scaffolds (the architecture describes 18 domains; `reply-drafts` is a 19th domain added outside the original domain map).
 
-**Main risks:** The biggest risks are: (1) No UI — the project is API-only with no user-facing interface, (2) AI runtime is entirely scaffolded with no actual AI provider integration, (3) The 18-domain architecture may be over-scoped for an MVP, (4) Reply drafts currently generate stub text with no real AI, (5) No E2E or integration tests against a real database.
+**Main risks:** The biggest risks are: (1) AI runtime is entirely scaffolded with no actual AI provider integration, (2) The 18-domain architecture may be over-scoped for an MVP, (3) Reply drafts currently generate stub text with no real AI, (4) No E2E or integration tests against a real database, (5) Backend and frontend repos must keep API type contracts in sync manually.
 
-**Best next move:** Build a minimal operator inbox UI (conversation list + message view + reply) while connecting the existing API endpoints. Then implement AI runtime with a single provider.
+**Best next move:** Wire remaining frontend pages to existing backend API endpoints, then implement AI runtime with a single provider.
+
+> **⚠️ Important:** This report covers the **backend/API repository** only. The product also has a **companion frontend repository** (`iranservice/ai-reception-saas-a7cff9d2`) built with TanStack Start + Lovable.dev. See §1A for details. Any architecture audit must consider both repos.
+
+---
+
+## 1A. Companion Frontend Repository
+
+The AiA Reception SaaS product is a **two-repository architecture**: this backend repo provides the API, and a separate frontend repo provides the user-facing UI.
+
+| Field | Value |
+|---|---|
+| Repository name | `iranservice/ai-reception-saas-a7cff9d2` |
+| Git remote | `git@github.com:iranservice/ai-reception-saas-a7cff9d2.git` |
+| Local path | `/Users/aria/Projects/AiA/ai-reception-saas-a7cff9d2` |
+| Framework | TanStack Start (TanStack Router + React 19) via Vite 7 |
+| Origin | **Lovable.dev** — scaffolded from `template: tanstack_start_ts_2026-05-06` |
+| Build tool | Vite 7 + Nitro (Vercel preset) |
+| Package manager | Bun (`bun.lock`) |
+| Role | Product-facing frontend UI — operator dashboard, inbox, CRM, settings |
+| Deployment | Vercel (separate project), with `/api/*` rewritten to backend Vercel deployment |
+| UI components | 47 Radix-based primitives (shadcn/ui pattern) + 18 app-level components |
+| Routes | 48 route files (TanStack Router file-based routing) |
+| API hooks | 13 React hooks binding to this backend's API (`use-conversations.ts`, `use-customers.ts`, etc.) |
+| Source files | 142 TS/TSX files, ~28,600 lines |
+| PRs merged | 49 |
+| Current branch | `main` |
+| Working tree | Clean |
+
+### How Frontend Connects to Backend
+
+```
+Frontend (ai-reception-saas-a7cff9d2)     Backend (ai-reception-saas)
+┌──────────────────────────────────┐       ┌───────────────────────────┐
+│ TanStack Start + Vite            │       │ Next.js 15 (API only)     │
+│ src/lib/api-client.ts            │──────▶│ src/app/api/              │
+│   fetch(VITE_API_BASE_URL + ...) │       │   35 route files          │
+│                                  │       │   Auth.js + Prisma        │
+│ vercel.json rewrites:            │       │                           │
+│   /api/* → backend.vercel.app    │       │                           │
+└──────────────────────────────────┘       └───────────────────────────┘
+```
+
+- Frontend's `src/lib/api-client.ts` is a typed fetch wrapper against this backend.
+- Frontend's `src/lib/api-types.ts` manually mirrors backend domain types — **no automated sync**.
+- Auth flows: Frontend fetches `/api/auth/session` via same-origin rewrite → backend Auth.js.
+- Business context: Frontend's `src/contexts/business-context.tsx` resolves active business from session.
+
+### Frontend Surfaces Implemented
+
+| Surface | Routes | Status |
+|---|---|---|
+| Dashboard | `/` (index) | ✅ Wired to backend summary API |
+| Inbox | `/inbox`, `/inbox/$conversationId` | ✅ Wired to backend conversations/messages APIs |
+| Customers | `/customers`, `/customers/$customerId` | ✅ Wired to backend CRM API |
+| Members | `/members` | ✅ Wired to backend memberships API |
+| Channels | `/channels`, `/channels/$channelId` | Partially wired (static registry) |
+| Settings | `/settings`, `/settings/ai` | Partially wired |
+| Audit | `/audit` | ✅ Wired to backend audit API |
+| Auth | `/login`, `/signup`, `/forgot-password`, `/verify-email` | UI exists, wired to Auth.js |
+| Onboarding | `/onboarding/*` (5 steps) | UI exists, partially wired |
+| Admin panel | `/admin/*` (7 routes) | UI exists, mock data |
+| Chat widget | `/chat/$businessId`, `/widget-preview` | UI exists, not wired |
+| Knowledge base | `/knowledge` | UI exists, not wired |
+
+### Key Frontend Files for Claude Project Upload
+
+| File | Why |
+|---|---|
+| `package.json` | Frontend dependencies and build scripts |
+| `vite.config.ts` | Build config (Lovable + Nitro + Vercel) |
+| `vercel.json` | API proxy rewrites linking frontend to backend |
+| `.env.example` | Frontend env vars (`VITE_API_BASE_URL`, `VITE_DEV_BUSINESS_ID`) |
+| `src/lib/api-client.ts` | How frontend calls backend API |
+| `src/lib/api-types.ts` | Frontend mirror of backend domain types |
+| `src/contexts/business-context.tsx` | Multi-tenant business context |
+| `src/hooks/use-auth-session.ts` | Auth session hook |
+| `src/hooks/use-conversations.ts` | Conversation API binding |
+| `src/hooks/use-messages.ts` | Message API binding |
+| `src/hooks/use-customers.ts` | Customer API binding |
+| `src/hooks/use-dashboard-summary.ts` | Dashboard API binding |
+| `src/hooks/use-current-reply-draft.ts` | Reply draft API binding |
+| `src/hooks/use-reply-draft-actions.ts` | Reply draft mutation hooks |
+| `src/components/app-shell.tsx` | Main app layout (sidebar, nav, responsive) |
+| `src/components/ai-draft-panel.tsx` | AI draft review UI |
+| `src/routes/__root.tsx` | Root route layout |
+| `src/routes/index.tsx` | Dashboard page |
+| `src/routes/inbox.$conversationId.tsx` | Conversation detail page |
+| `docs/product/lovable-prototype-handoff.md` | Lovable handoff context |
+| `docs/product/prototype-to-production-migration-plan.md` | Frontend migration strategy |
+| `docs/architecture/design-system-reference.md` | Design system spec |
+| `docs/architecture/ui-shell-and-navigation-reference.md` | Navigation architecture |
+
+### Cross-Repo Risks
+
+1. **No automated type sync** — `api-types.ts` (frontend) must be manually updated when backend domain types change.
+2. **Reply draft send-tracking** (backend PR #86) may not yet be reflected in frontend hooks.
+3. **API contract changes** in backend handlers are not automatically detected by frontend.
+4. **Different package managers** — backend uses pnpm, frontend uses Bun.
+5. **Different frameworks** — backend is Next.js 15, frontend is TanStack Start. Merging them would require a major rewrite.
 
 ---
 
@@ -392,7 +492,7 @@ ai-reception-saas/
 
 | Item | Source/Evidence | Why It Matters | Recommended Model | Priority |
 |---|---|---|---|---|
-| **Operator inbox UI** | PRD §15, no frontend code | Users cannot interact with the system | Opus 4.8 | P0 |
+| **Operator inbox UI wiring** | PRD §15; frontend UI exists in companion repo but some pages not fully wired to backend | Remaining pages need API integration | Opus 4.8 | P0 |
 | **AI runtime adapter** | PRD §18, `src/domains/ai-runtime/` empty | AI classification/drafting requires a provider | Fable 5 (design) / Opus 4.8 (impl) | P0 |
 | **AI classification pipeline** | PRD §6, `ENABLE_AI_CLASSIFICATION` flag planned | S1 milestone requirement | Opus 4.8 | P1 |
 | **Conversation assignment** | Implementation deferred to R4 | Operators can't claim conversations | Opus 4.8 | P1 |
@@ -632,7 +732,7 @@ settings.read, settings.update
 
 ### Inbox UI
 
-**Not implemented.** The only page is `src/app/page.tsx` which renders "Hello world".
+**Not implemented in this backend repo.** The only page in this repo is `src/app/page.tsx` which renders "Hello world". However, the companion frontend repo (`ai-reception-saas-a7cff9d2`) has a full inbox UI at `/inbox` and `/inbox/$conversationId`, wired to this backend's conversations and messages APIs. See §1A.
 
 ### Operator Workflow
 
@@ -870,17 +970,17 @@ See Section 21 below.
 
 ## 22. Current Architecture Overview
 
-### Frontend Architecture
+### Frontend Architecture (This Repo)
 
-**None.** `src/app/page.tsx` renders "Hello world". `src/app/layout.tsx` is a minimal HTML wrapper. `src/app/globals.css` contains only `@import "tailwindcss"`.
+**None in this repo.** `src/app/page.tsx` renders "Hello world". `src/app/layout.tsx` is a minimal HTML wrapper. `src/app/globals.css` contains only `@import "tailwindcss"`. The product-facing frontend lives in the companion repo (`ai-reception-saas-a7cff9d2`) — see §1A.
 
 ### Routing Architecture
 
-Next.js 15 App Router with file-based routing. All routes are API routes under `src/app/api/`. No page routes exist beyond the root.
+Next.js 15 App Router with file-based routing. All routes in this repo are API routes under `src/app/api/`. No page routes exist beyond the root placeholder. Frontend routing (48 routes) lives in the companion repo using TanStack Router.
 
-### Component Architecture
+### Component Architecture (This Repo)
 
-**None.** No React components exist.
+**None in this repo.** No React components exist here. The companion frontend repo has 47 Radix-based UI primitives and 18 app-level components — see §1A.
 
 ### Data Access Architecture
 
@@ -932,7 +1032,7 @@ Good unit test coverage of handlers and services with mock dependencies. No inte
 
 | Risk | Severity | Description |
 |---|---|---|
-| **No UI** | Critical | The entire frontend is missing. Users cannot interact with the product. |
+| **No UI in this repo** | Low | This backend repo has no frontend UI. The product-facing UI exists in the companion frontend repo (`ai-reception-saas-a7cff9d2`). See §1A. |
 | **No AI runtime** | High | The core differentiator (AI-assisted reception) has zero implementation. |
 | **12 empty domains** | Medium | 19 domain directories exist (18-domain architecture + reply-drafts); 12 are empty scaffolds. May be premature for MVP. Navigation overhead. |
 | **Application-level tenant isolation only** | High | A single missing `WHERE businessId = ?` could leak data across tenants. |
@@ -1104,17 +1204,18 @@ src/
 
 ## 27. Next Development Sequence
 
-### T-001: Build Minimal Operator Inbox UI
+### T-001: Complete Operator Inbox API Wiring
 
 | Field | Value |
 |---|---|
-| Goal | Create a minimal but functional operator inbox with conversation list, message view, and reply form |
-| Risk | Medium |
+| Goal | Ensure all frontend inbox pages in the companion repo are fully wired to backend API endpoints |
+| Risk | Low-Medium |
 | Model | Opus 4.8 |
-| Files | `src/app/(dashboard)/inbox/`, new components |
-| Acceptance criteria | Operator can view conversations, read messages, and send replies via the UI |
-| Tests | Visual smoke test, component unit tests |
-| Owner approval required | Yes (UI design choices) |
+| Files | Frontend: `src/hooks/use-conversations.ts`, `src/routes/inbox.$conversationId.tsx`. Backend: verify all referenced API endpoints exist and return correct shapes. |
+| Acceptance criteria | Operator can view conversations, read messages, and send replies via the existing frontend UI |
+| Tests | API contract tests, visual smoke test |
+| Owner approval required | No (UI already exists in companion repo) |
+| Note | The frontend UI already exists in `ai-reception-saas-a7cff9d2`. This task is about completing API integration, not building new UI. See §1A. |
 
 ### T-002: Implement Conversation Assignment
 
@@ -1344,19 +1445,20 @@ pnpm build
 
 | Aspect | Assessment |
 |---|---|
-| **Project maturity** | Early-to-mid MVP foundation. Backend API is solid for implemented domains. No UI. |
+| **Project maturity** | Early-to-mid MVP foundation. Backend API is solid for implemented domains. Frontend UI exists in companion repo. |
 | **Code quality** | High. Consistent patterns, good separation of concerns, well-documented. |
-| **Main risks** | No UI, no AI runtime, application-only tenant isolation, Auth.js beta, no rate limiting. |
-| **Best next move** | Build minimal operator inbox UI while connecting existing APIs. Then implement AI runtime. |
-| **Architecture audit needed?** | ⚠️ Recommended but not blocking. The 18-domain scope may need pruning. |
+| **Main risks** | No AI runtime, application-only tenant isolation, Auth.js beta, no rate limiting, manual API type sync between repos. |
+| **Best next move** | Complete frontend-to-backend API wiring for remaining pages. Then implement AI runtime. |
+| **Architecture audit needed?** | ⚠️ Recommended. Must cover both backend and frontend repos. The 18-domain scope may need pruning. |
 | **Refactor needed before feature dev?** | No. Codebase is clean enough to build on directly. |
 | **Can Claude Code safely continue?** | **Yes.** The codebase is well-structured with clear patterns to follow. This report provides sufficient context for safe continuation. |
+| **Two-repo product?** | **Yes.** Backend = `ai-reception-saas`. Frontend = `ai-reception-saas-a7cff9d2`. See §1A. |
 
 ### Top 5 Risks
 
-1. **No frontend UI** — the product cannot be used by anyone
-2. **No AI runtime** — the core differentiator is unimplemented
-3. **Application-only tenant isolation** — a single missed query filter could leak cross-tenant data
+1. **No AI runtime** — the core differentiator is unimplemented
+2. **Application-only tenant isolation** — a single missed query filter could leak cross-tenant data
+3. **No automated API type sync** — frontend `api-types.ts` must be manually updated when backend types change
 4. **Auth.js v5 beta dependency** — pre-release library in production path
 5. **No rate limiting or abuse protection** — all endpoints are unprotected
 
@@ -1377,7 +1479,7 @@ The following items could not be determined from code inspection alone. They mus
 | U7 | Whether `ENABLE_DEV_AUTH_CONTEXT` is set in staging | Critical security variable — must be `false` in non-dev environments | Owner confirms Vercel env var settings |
 | U8 | Whether existing Prisma migrations have been applied to staging DB | Unknown migration state of production/staging database | Run `prisma migrate status` against staging |
 | U9 | Lock file integrity | `pnpm-lock.yaml` exists but has not been integrity-checked | Run `pnpm install --frozen-lockfile` |
-| U10 | Whether the second workspace (`ai-reception-saas-a7cff9d2`) contains divergent code | A second workspace directory exists with potentially different files | Compare git status/branch of both workspaces |
+| U10 | ~~Second workspace divergence~~ **RESOLVED** | `ai-reception-saas-a7cff9d2` is the **companion frontend repo** — a separate GitHub repository (`iranservice/ai-reception-saas-a7cff9d2`), not a stale copy. See §1A. | Resolved 2026-06-12 |
 
 ---
 
@@ -1473,7 +1575,12 @@ Do NOT:
 - Modify existing Prisma migrations
 - Change src/lib/auth/ without understanding the feature gate system
 
-Current state: Backend API is functional for 7 domains (identity, tenancy, authz, audit, crm, conversations, reply-drafts). No frontend UI exists. No AI runtime exists.
+Current state: Backend API is functional for 7 domains (identity, tenancy, authz, audit, crm, conversations, reply-drafts). No AI runtime exists.
+
+IMPORTANT: This is the BACKEND repo only. The product also has a companion
+frontend repo (iranservice/ai-reception-saas-a7cff9d2) built with TanStack Start.
+See docs/HANDOFF_FROM_ANTIGRAVITY.md §1A for details. Do not build a new
+frontend in this repo — the frontend already exists in the companion repo.
 ```
 
 ---
@@ -1534,4 +1641,62 @@ Provide Fable 5 with:
 
 ---
 
-*Report generated: 2026-06-11. QA-reviewed: 2026-06-11. No production code was modified.*
+## 37. Claude Project Upload Guidance
+
+When uploading files to a Claude Project for architecture audit, **upload selected files from both repos** and label them clearly.
+
+### From Backend Repo (`ai-reception-saas`) — Upload These
+
+| File | Why |
+|---|---|
+| `docs/HANDOFF_FROM_ANTIGRAVITY.md` | This report — complete project context |
+| `package.json` | Dependencies and scripts |
+| `prisma/schema.prisma` | Canonical data model (12 models, 16 enums) |
+| `docs/product/PRD-v1.md` | Locked product requirements |
+| `docs/product/mvp-scope.md` | MVP scope boundaries |
+| `docs/DOMAIN_MAP.md` | 18-domain architecture reference |
+| `docs/DEVELOPMENT_PIPELINE.md` | Dev workflow |
+| `docs/COMMIT_CONVENTION.md` | Commit convention |
+| `.env.example` | Backend env vars |
+| `src/app/api/_shared/composition.ts` | DI root |
+| `src/app/api/_shared/request-context.ts` | Auth/tenant context contracts |
+| `src/domains/authz/permissions.ts` | RBAC permission map |
+| `src/domains/authz/types.ts` | Permission type definitions |
+| `src/lib/result.ts` | ActionResult pattern |
+| `src/lib/errors.ts` | Error hierarchy |
+| `src/lib/env.ts` | Environment config |
+| `src/domains/conversations/validation.ts` | Conversation status FSM |
+
+### From Frontend Repo (`ai-reception-saas-a7cff9d2`) — Upload These
+
+| File | Why |
+|---|---|
+| `package.json` | Frontend dependencies (TanStack, Radix, Lovable, Vite) |
+| `vite.config.ts` | Build config |
+| `vercel.json` | API proxy rewrites — links frontend to backend |
+| `.env.example` | Frontend env vars |
+| `src/lib/api-client.ts` | How frontend calls backend |
+| `src/lib/api-types.ts` | Frontend mirror of backend types |
+| `src/contexts/business-context.tsx` | Multi-tenant context |
+| `src/hooks/use-auth-session.ts` | Auth session hook |
+| `src/hooks/use-conversations.ts` | Conversation API binding |
+| `src/hooks/use-messages.ts` | Message API binding |
+| `src/hooks/use-customers.ts` | Customer API binding |
+| `src/hooks/use-dashboard-summary.ts` | Dashboard API binding |
+| `src/components/app-shell.tsx` | Main layout |
+| `src/routes/index.tsx` | Dashboard page |
+| `src/routes/inbox.$conversationId.tsx` | Conversation detail |
+| `docs/product/lovable-prototype-handoff.md` | Lovable handoff |
+| `docs/architecture/design-system-reference.md` | Design system |
+
+### Upload Rules
+
+1. **Label every file** as `[BACKEND]` or `[FRONTEND]` in the Claude Project.
+2. Upload backend files first (they contain the authoritative schema and product docs).
+3. Upload frontend files second (they provide UI architecture and API bindings).
+4. **Never mix** the two repos without clear labels — they use different frameworks, package managers, and build tools.
+5. Architecture audit must consider **both repos together** to be meaningful.
+
+---
+
+*Report generated: 2026-06-11. QA-reviewed: 2026-06-11. Frontend companion section added: 2026-06-12. No production code was modified.*
