@@ -73,7 +73,7 @@ ai-reception-saas/
 
 ```bash
 # Clone the repository
-git clone https://github.com/iranservice/ai-reception-saas.git
+git clone https://github.com/workdabiri/ai-reception-saas.git
 cd ai-reception-saas
 
 # Install dependencies

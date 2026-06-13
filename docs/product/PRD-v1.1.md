@@ -1,6 +1,6 @@
 # PRD-v1.1 — Amendment to PRD-v1 (AiA Reception SaaS)
 
-**Status:** LOCKED (owner approved, 2026-06-13) **Date:** 2026-06-13 **Version:** 1.1 (Amendment) **Supersedes:** PRD-v1.0 *for Private Alpha scope only* **Baseline retained:** PRD-v1.0 (`PRD-v1.md`, locked 2026-05-22) **Backend repo:** `iranservice/ai-reception-saas` **Frontend repo:** `iranservice/ai-reception-saas-a7cff9d2`
+**Status:** LOCKED (owner approved, 2026-06-13) **Date:** 2026-06-13 **Version:** 1.1 (Amendment) **Supersedes:** PRD-v1.0 *for Private Alpha scope only* **Baseline retained:** PRD-v1.0 (`PRD-v1.md`, locked 2026-05-22) **Backend repo:** `workdabiri/ai-reception-saas` **Frontend repo:** `workdabiri/ai-reception-saas-a7cff9d2`
 
 This amendment is a **reconciliation layer**, not a rewrite. PRD-v1.0 remains the original locked product baseline. Sections below override or clarify PRD-v1.0 **only where explicitly stated**, and only for Private Alpha decisions. All PRD-v1.0 safety gates, domain definitions, and anti-scope rules not contradicted here remain in force.
 
@@ -323,8 +323,8 @@ PRD-v1.0 §2 labels the product a "single Next.js 15 modular monolith." This is 
 
 | Layer | Repo | Stack |
 | :---- | :---- | :---- |
-| Backend API | `iranservice/ai-reception-saas` | Next.js 15 (API only), TypeScript, Prisma, PostgreSQL |
-| Frontend UI | `iranservice/ai-reception-saas-a7cff9d2` | TanStack Start (TanStack Router \+ React 19\) via Vite, scaffolded from Lovable.dev |
+| Backend API | `workdabiri/ai-reception-saas` | Next.js 15 (API only), TypeScript, Prisma, PostgreSQL |
+| Frontend UI | `workdabiri/ai-reception-saas-a7cff9d2` | TanStack Start (TanStack Router \+ React 19\) via Vite, scaffolded from Lovable.dev |
 
 **\[Verified — repo: handoff §1A\]**
 

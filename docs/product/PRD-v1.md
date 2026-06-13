@@ -3,7 +3,7 @@
 > **Status:** LOCKED  
 > **Date:** 2026-05-22  
 > **Version:** 1.0  
-> **Repository:** iranservice/ai-reception-saas
+> **Repository:** workdabiri/ai-reception-saas
 
 ---
 

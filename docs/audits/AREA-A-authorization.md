@@ -1,6 +1,6 @@
 # Area A — Authorization Architecture Audit
 
-**Product:** AiA Reception SaaS **Scope:** Authorization Architecture — Tenant Isolation \+ RBAC \+ ABAC **Status:** VERIFIED / CONDITIONAL **Date:** 2026-06-13 **Source of truth:** PRD-v1.1 (LOCKED, 2026-06-13) **Audit type:** Evidence-based source verification (post evidence-bundle) **Backend repo:** `iranservice/ai-reception-saas`
+**Product:** AiA Reception SaaS **Scope:** Authorization Architecture — Tenant Isolation \+ RBAC \+ ABAC **Status:** VERIFIED / CONDITIONAL **Date:** 2026-06-13 **Source of truth:** PRD-v1.1 (LOCKED, 2026-06-13) **Audit type:** Evidence-based source verification (post evidence-bundle) **Backend repo:** `workdabiri/ai-reception-saas`
 
 This audit verifies the authorization architecture against actual backend source and Prisma migrations from the Area A evidence bundle. Current-implementation claims are labelled **\[VERIFIED\]** (read in source/migration), **\[VERIFIED-TEST\]** (confirmed by a test file), or **\[NEEDS FILE\]** (not present in the bundle; inferred from contract). No code, implementation tasks, or Claude Code prompts are included. PRD-v1.1 is unchanged.
 

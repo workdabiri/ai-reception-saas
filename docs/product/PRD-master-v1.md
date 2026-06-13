@@ -4,7 +4,7 @@
 > **Date:** 2026-06-04
 > **Version:** 0.1
 > **Extends:** [PRD-v1.md](./PRD-v1.md) (backend-scoped, locked 2026-05-22)
-> **Repositories:** `iranservice/ai-reception-saas` (Backend) · `iranservice/ai-reception-saas-a7cff9d2` (Frontend)
+> **Repositories:** `workdabiri/ai-reception-saas` (Backend) · `workdabiri/ai-reception-saas-a7cff9d2` (Frontend)
 > **Production:** `https://dashboard.aiautomations.ae`
 
 ---

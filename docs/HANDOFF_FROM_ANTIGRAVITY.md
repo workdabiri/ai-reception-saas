@@ -7,11 +7,11 @@
 | Field | Value |
 |---|---|
 | Date/time | 2026-06-11T16:32 +04:00 |
-| Repository name | iranservice/ai-reception-saas |
+| Repository name | workdabiri/ai-reception-saas |
 | Current branch | `main` |
 | Commit hash | `345341ee5c8e4e93bce34581fdba519debba6030` |
 | Commit message | `feat(reply-drafts): add send tracking permission schema (#86)` |
-| Git remote origin | `git@github.com:iranservice/ai-reception-saas.git` |
+| Git remote origin | `git@github.com:workdabiri/ai-reception-saas.git` |
 | Local workspace | `/Users/aria/Projects/AiA/ai-reception-saas` |
 | Model/tool used | Claude Opus 4.6 (Thinking) via AntiGravity IDE |
 | Production code modified | **No** |
@@ -36,7 +36,7 @@
 
 **Best next move:** Wire remaining frontend pages to existing backend API endpoints, then implement AI runtime with a single provider.
 
-> **⚠️ Important:** This report covers the **backend/API repository** only. The product also has a **companion frontend repository** (`iranservice/ai-reception-saas-a7cff9d2`) built with TanStack Start + Lovable.dev. See §1A for details. Any architecture audit must consider both repos.
+> **⚠️ Important:** This report covers the **backend/API repository** only. The product also has a **companion frontend repository** (`workdabiri/ai-reception-saas-a7cff9d2`) built with TanStack Start + Lovable.dev. See §1A for details. Any architecture audit must consider both repos.
 
 ---
 
@@ -46,8 +46,8 @@ The AiA Reception SaaS product is a **two-repository architecture**: this backen
 
 | Field | Value |
 |---|---|
-| Repository name | `iranservice/ai-reception-saas-a7cff9d2` |
-| Git remote | `git@github.com:iranservice/ai-reception-saas-a7cff9d2.git` |
+| Repository name | `workdabiri/ai-reception-saas-a7cff9d2` |
+| Git remote | `git@github.com:workdabiri/ai-reception-saas-a7cff9d2.git` |
 | Local path | `/Users/aria/Projects/AiA/ai-reception-saas-a7cff9d2` |
 | Framework | TanStack Start (TanStack Router + React 19) via Vite 7 |
 | Origin | **Lovable.dev** — scaffolded from `template: tanstack_start_ts_2026-05-06` |
@@ -1479,7 +1479,7 @@ The following items could not be determined from code inspection alone. They mus
 | U7 | Whether `ENABLE_DEV_AUTH_CONTEXT` is set in staging | Critical security variable — must be `false` in non-dev environments | Owner confirms Vercel env var settings |
 | U8 | Whether existing Prisma migrations have been applied to staging DB | Unknown migration state of production/staging database | Run `prisma migrate status` against staging |
 | U9 | Lock file integrity | `pnpm-lock.yaml` exists but has not been integrity-checked | Run `pnpm install --frozen-lockfile` |
-| U10 | ~~Second workspace divergence~~ **RESOLVED** | `ai-reception-saas-a7cff9d2` is the **companion frontend repo** — a separate GitHub repository (`iranservice/ai-reception-saas-a7cff9d2`), not a stale copy. See §1A. | Resolved 2026-06-12 |
+| U10 | ~~Second workspace divergence~~ **RESOLVED** | `ai-reception-saas-a7cff9d2` is the **companion frontend repo** — a separate GitHub repository (`workdabiri/ai-reception-saas-a7cff9d2`), not a stale copy. See §1A. | Resolved 2026-06-12 |
 
 ---
 
@@ -1491,7 +1491,7 @@ Run these checks **before making any changes** to verify the codebase is in a kn
 
 - [ ] `node --version` → must be ≥ 20.0.0
 - [ ] `pnpm --version` → should be 10.30.2 (from `packageManager` field)
-- [ ] `git remote get-url origin` → must be `git@github.com:iranservice/ai-reception-saas.git`
+- [ ] `git remote get-url origin` → must be `git@github.com:workdabiri/ai-reception-saas.git`
 - [ ] `git branch --show-current` → note current branch
 - [ ] `git status --short` → should be clean (no uncommitted changes except this report)
 - [ ] `.env` or `.env.local` exists with at least `DATABASE_URL`
@@ -1578,7 +1578,7 @@ Do NOT:
 Current state: Backend API is functional for 7 domains (identity, tenancy, authz, audit, crm, conversations, reply-drafts). No AI runtime exists.
 
 IMPORTANT: This is the BACKEND repo only. The product also has a companion
-frontend repo (iranservice/ai-reception-saas-a7cff9d2) built with TanStack Start.
+frontend repo (workdabiri/ai-reception-saas-a7cff9d2) built with TanStack Start.
 See docs/HANDOFF_FROM_ANTIGRAVITY.md §1A for details. Do not build a new
 frontend in this repo — the frontend already exists in the companion repo.
 ```

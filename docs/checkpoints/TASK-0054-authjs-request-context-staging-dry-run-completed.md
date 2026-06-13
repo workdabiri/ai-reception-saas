@@ -3,7 +3,7 @@
 > **Decision: GO — Auth/Tenancy Foundation Accepted**
 >
 > Date: 2026-05-20
-> Repository: `iranservice/ai-reception-saas`
+> Repository: `workdabiri/ai-reception-saas`
 > Staging domain: `https://ai-reception-saas.vercel.app`
 > Fix commit: `f5ef6ff`
 
@@ -19,7 +19,7 @@
 
 ### 1.2 Vercel Staging
 
-- Vercel staging deployment was provisioned and linked to `iranservice/ai-reception-saas` on GitHub.
+- Vercel staging deployment was provisioned and linked to `workdabiri/ai-reception-saas` on GitHub.
 - **Deployment protection was disabled** to allow unauthenticated API testing (e.g. `curl` without Vercel auth).
 
 ### 1.3 DATABASE_URL Switch
