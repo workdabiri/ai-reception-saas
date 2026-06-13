@@ -288,6 +288,14 @@ export function createTenancyRepository(db: TenancyRepositoryDb): TenancyReposit
         if (!membership) {
           return err('TENANT_ACCESS_DENIED', 'Tenant access denied');
         }
+        // Deny tenant context for non-ACTIVE businesses (SUSPENDED/ARCHIVED)
+        // even when the membership itself is ACTIVE. Uses the same
+        // TENANT_ACCESS_DENIED shape as a missing membership so the Auth.js
+        // adapter continues to return 403.
+        const business = await db.business.findUnique({ where: { id: input.businessId } });
+        if (!business || business.status !== 'ACTIVE') {
+          return err('TENANT_ACCESS_DENIED', 'Tenant access denied');
+        }
         return ok<TenantContext>({
           businessId: input.businessId,
           userId: input.userId,
