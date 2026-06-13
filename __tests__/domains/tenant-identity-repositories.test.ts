@@ -21,6 +21,10 @@ import type {
   BusinessRecord,
   BusinessMembershipRecord,
 } from '../../src/domains/tenancy/repository';
+import type {
+  BusinessStatusValue,
+  MembershipStatusValue,
+} from '../../src/domains/tenancy/types';
 
 import {
   createAuditRepository,
@@ -386,6 +390,207 @@ describe('Tenancy Repository', () => {
     expect(result.ok).toBe(false);
     if (!result.ok) {
       expect(result.error.code).toBe('TENANCY_REPOSITORY_ERROR');
+    }
+  });
+});
+
+// ===========================================================================
+// A-R3 — resolveTenantContext: ACTIVE-membership + business-status enforcement
+//
+// Direct source verification for Area A remediation blocker 3
+// (docs/audits/AREA-A-authorization.md §10.3):
+//   - Only ACTIVE memberships resolve a tenant context.
+//   - Non-ACTIVE memberships (INVITED/DECLINED/EXPIRED/REMOVED/LEFT) are denied.
+//   - SUSPENDED / ARCHIVED businesses are denied even with an ACTIVE membership.
+// Denial keeps the err('TENANT_ACCESS_DENIED') shape the Auth.js adapter maps
+// to a 403 (src/app/api/_shared/authjs-context-adapter.ts).
+//
+// The seeded DB below applies each Prisma `where` filter against in-memory
+// rows, so it is the resolver's own `status: 'ACTIVE'` filter — not the test —
+// that excludes non-ACTIVE memberships.
+// ===========================================================================
+
+function membershipWithStatus(
+  status: MembershipStatusValue,
+): BusinessMembershipRecord {
+  return {
+    ...MOCK_MEMBERSHIP_RECORD,
+    status,
+    joinedAt: status === 'ACTIVE' ? NOW : null,
+  };
+}
+
+function businessWithStatus(status: BusinessStatusValue): BusinessRecord {
+  return { ...MOCK_BUSINESS_RECORD, status };
+}
+
+/**
+ * Builds a tenancy DB whose membership/business lookups honour their Prisma
+ * `where` filters against the seeded rows. This makes the per-status cases
+ * genuine behavioural assertions rather than fixed-return stubs.
+ */
+function createSeededTenancyDb(seed: {
+  memberships: BusinessMembershipRecord[];
+  businesses: BusinessRecord[];
+}): TenancyRepositoryDb {
+  const db = createMockTenancyDb();
+  vi.mocked(db.businessMembership.findFirst).mockImplementation(async (args) => {
+    const where = args.where;
+    return (
+      seed.memberships.find(
+        (m) =>
+          m.userId === where.userId &&
+          m.businessId === where.businessId &&
+          m.status === where.status,
+      ) ?? null
+    );
+  });
+  vi.mocked(db.business.findUnique).mockImplementation(async (args) => {
+    const where = args.where as { id?: string; slug?: string };
+    return (
+      seed.businesses.find(
+        (b) =>
+          (where.id !== undefined && b.id === where.id) ||
+          (where.slug !== undefined && b.slug === where.slug),
+      ) ?? null
+    );
+  });
+  return db;
+}
+
+describe('Tenancy Repository — resolveTenantContext (A-R3)', () => {
+  const NON_ACTIVE_MEMBERSHIP_STATUSES: readonly MembershipStatusValue[] = [
+    'INVITED',
+    'DECLINED',
+    'EXPIRED',
+    'REMOVED',
+    'LEFT',
+  ];
+
+  it('resolves context for an ACTIVE membership in an ACTIVE business', async () => {
+    const db = createSeededTenancyDb({
+      memberships: [membershipWithStatus('ACTIVE')],
+      businesses: [businessWithStatus('ACTIVE')],
+    });
+    const repo = createTenancyRepository(db);
+    const result = await repo.resolveTenantContext({
+      userId: MOCK_USER_RECORD.id,
+      businessId: MOCK_BUSINESS_RECORD.id,
+    });
+    expect(result.ok).toBe(true);
+    if (result.ok) {
+      expect(result.data).toEqual({
+        businessId: MOCK_BUSINESS_RECORD.id,
+        userId: MOCK_USER_RECORD.id,
+        membershipId: MOCK_MEMBERSHIP_RECORD.id,
+        role: 'OWNER',
+      });
+    }
+  });
+
+  it('filters the membership lookup by status: ACTIVE', async () => {
+    const db = createSeededTenancyDb({
+      memberships: [membershipWithStatus('ACTIVE')],
+      businesses: [businessWithStatus('ACTIVE')],
+    });
+    const repo = createTenancyRepository(db);
+    await repo.resolveTenantContext({
+      userId: MOCK_USER_RECORD.id,
+      businessId: MOCK_BUSINESS_RECORD.id,
+    });
+    expect(db.businessMembership.findFirst).toHaveBeenCalledWith({
+      where: {
+        userId: MOCK_USER_RECORD.id,
+        businessId: MOCK_BUSINESS_RECORD.id,
+        status: 'ACTIVE',
+      },
+    });
+  });
+
+  it.each(NON_ACTIVE_MEMBERSHIP_STATUSES)(
+    'denies a %s (non-ACTIVE) membership with TENANT_ACCESS_DENIED',
+    async (status) => {
+      const db = createSeededTenancyDb({
+        memberships: [membershipWithStatus(status)],
+        businesses: [businessWithStatus('ACTIVE')],
+      });
+      const repo = createTenancyRepository(db);
+      const result = await repo.resolveTenantContext({
+        userId: MOCK_USER_RECORD.id,
+        businessId: MOCK_BUSINESS_RECORD.id,
+      });
+      expect(result.ok).toBe(false);
+      if (!result.ok) {
+        expect(result.error.code).toBe('TENANT_ACCESS_DENIED');
+      }
+    },
+  );
+
+  it('denies when the user has no membership in the business', async () => {
+    const db = createSeededTenancyDb({
+      memberships: [],
+      businesses: [businessWithStatus('ACTIVE')],
+    });
+    const repo = createTenancyRepository(db);
+    const result = await repo.resolveTenantContext({
+      userId: MOCK_USER_RECORD.id,
+      businessId: MOCK_BUSINESS_RECORD.id,
+    });
+    expect(result.ok).toBe(false);
+    if (!result.ok) {
+      expect(result.error.code).toBe('TENANT_ACCESS_DENIED');
+    }
+  });
+
+  it('denies a SUSPENDED business even with an ACTIVE membership', async () => {
+    const db = createSeededTenancyDb({
+      memberships: [membershipWithStatus('ACTIVE')],
+      businesses: [businessWithStatus('SUSPENDED')],
+    });
+    const repo = createTenancyRepository(db);
+    const result = await repo.resolveTenantContext({
+      userId: MOCK_USER_RECORD.id,
+      businessId: MOCK_BUSINESS_RECORD.id,
+    });
+    expect(result.ok).toBe(false);
+    if (!result.ok) {
+      expect(result.error.code).toBe('TENANT_ACCESS_DENIED');
+    }
+    // Business status is consulted via a by-id lookup.
+    expect(db.business.findUnique).toHaveBeenCalledWith({
+      where: { id: MOCK_BUSINESS_RECORD.id },
+    });
+  });
+
+  it('denies an ARCHIVED business even with an ACTIVE membership', async () => {
+    const db = createSeededTenancyDb({
+      memberships: [membershipWithStatus('ACTIVE')],
+      businesses: [businessWithStatus('ARCHIVED')],
+    });
+    const repo = createTenancyRepository(db);
+    const result = await repo.resolveTenantContext({
+      userId: MOCK_USER_RECORD.id,
+      businessId: MOCK_BUSINESS_RECORD.id,
+    });
+    expect(result.ok).toBe(false);
+    if (!result.ok) {
+      expect(result.error.code).toBe('TENANT_ACCESS_DENIED');
+    }
+  });
+
+  it('denies when the business record is missing', async () => {
+    const db = createSeededTenancyDb({
+      memberships: [membershipWithStatus('ACTIVE')],
+      businesses: [],
+    });
+    const repo = createTenancyRepository(db);
+    const result = await repo.resolveTenantContext({
+      userId: MOCK_USER_RECORD.id,
+      businessId: MOCK_BUSINESS_RECORD.id,
+    });
+    expect(result.ok).toBe(false);
+    if (!result.ok) {
+      expect(result.error.code).toBe('TENANT_ACCESS_DENIED');
     }
   });
 });
