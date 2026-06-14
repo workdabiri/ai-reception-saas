@@ -127,7 +127,7 @@ export interface CrmRepositoryDb {
       include?: { customer: boolean };
     }): Promise<(ContactMethodRecord & { customer?: CustomerRecord }) | null>;
     findMany(args: {
-      where: { customerId: string };
+      where: { customerId: string; businessId: string };
       orderBy: { createdAt: 'asc' };
     }): Promise<ContactMethodRecord[]>;
   };
@@ -202,6 +202,7 @@ export interface CrmRepository {
 
   listContactMethods(
     customerId: string,
+    businessId: string,
   ): Promise<ActionResult<readonly ContactMethodIdentity[]>>;
 }
 
@@ -439,10 +440,10 @@ export function createCrmRepository(db: CrmRepositoryDb): CrmRepository {
       }
     },
 
-    async listContactMethods(customerId) {
+    async listContactMethods(customerId, businessId) {
       try {
         const records = await db.customerContactMethod.findMany({
-          where: { customerId },
+          where: { customerId, businessId },
           orderBy: { createdAt: 'asc' },
         });
         return ok(records.map(mapContactMethodRecord));
