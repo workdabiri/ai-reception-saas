@@ -13,6 +13,7 @@
 
 import { z } from 'zod';
 import { apiError, apiOk } from '@/app/api/_shared/responses';
+import { assertBusinessRouteMatchesTenant } from '@/app/api/_shared/tenant-route-guard';
 import { validateRouteParams } from '@/app/api/_shared/params';
 import {
   resolveTenantRequestContext,
@@ -70,16 +71,6 @@ export interface EditDraftHandlerDeps {
 // ---------------------------------------------------------------------------
 // Shared helpers
 // ---------------------------------------------------------------------------
-
-function assertBusinessRouteMatchesTenant(
-  context: TenantRequestContext,
-  businessId: string,
-): Response | null {
-  if (businessId !== context.businessId) {
-    return apiError('TENANT_ACCESS_DENIED', 'Tenant access denied', 403);
-  }
-  return null;
-}
 
 async function requirePermission(
   deps: EditDraftHandlerDeps,
