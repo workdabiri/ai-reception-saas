@@ -319,7 +319,9 @@ export function createCrmService(deps: CrmServiceDeps): CrmService {
         return err(NOT_FOUND_CODE, 'Customer not found');
       }
 
-      return repository.listContactMethods(idResult.data);
+      // Defense-in-depth: scope the repository listing by businessId as well,
+      // even though ownership was already verified above.
+      return repository.listContactMethods(idResult.data, bizResult.data);
     },
   };
 }

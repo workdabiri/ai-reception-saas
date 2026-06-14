@@ -781,6 +781,17 @@ describeIntegration('Tenant identity repositories integration', () => {
       expect(cmAdd.ok).toBe(false);
       if (!cmAdd.ok) expect(cmAdd.error.code).toBe('CUSTOMER_NOT_FOUND');
 
+      // repository-level defense-in-depth (A-H3): the contact-method listing
+      // query is scoped by businessId, so A's businessId surfaces no rows for
+      // B's customer even if the service ownership gate were bypassed — while
+      // B's own businessId still returns its single contact method.
+      const repoForeignList = await crmRepo.listContactMethods(bCustomerId, aBusinessId);
+      expect(repoForeignList.ok).toBe(true);
+      if (repoForeignList.ok) expect(repoForeignList.data).toEqual([]);
+      const repoOwnerList = await crmRepo.listContactMethods(bCustomerId, bBusinessId);
+      expect(repoOwnerList.ok).toBe(true);
+      if (repoOwnerList.ok) expect(repoOwnerList.data.map((c) => c.id)).toEqual([bContactMethodId]);
+
       // B's customer is intact and still visible to B, with its single contact method
       const bView = await crm.findCustomerById({ customerId: bCustomerId, businessId: bBusinessId });
       expect(bView.ok).toBe(true);

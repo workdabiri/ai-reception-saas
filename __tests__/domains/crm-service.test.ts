@@ -394,6 +394,58 @@ describe('CrmService.removeContactMethod', () => {
 });
 
 // ---------------------------------------------------------------------------
+// listContactMethods
+// ---------------------------------------------------------------------------
+
+describe('CrmService.listContactMethods', () => {
+  it('lists contact methods for an owned customer', async () => {
+    const result = await service.listContactMethods({
+      customerId: CUSTOMER_ID,
+      businessId: BUSINESS_ID,
+    });
+    expect(result.ok).toBe(true);
+    if (result.ok) {
+      expect(result.data).toEqual([MOCK_CONTACT]);
+    }
+  });
+
+  it('passes both customerId and businessId into the repository (defense-in-depth)', async () => {
+    await service.listContactMethods({
+      customerId: CUSTOMER_ID,
+      businessId: BUSINESS_ID,
+    });
+    expect(mockRepo.listContactMethods).toHaveBeenCalledWith(
+      CUSTOMER_ID,
+      BUSINESS_ID,
+    );
+  });
+
+  it('rejects invalid customerId', async () => {
+    const result = await service.listContactMethods({
+      customerId: 'bad',
+      businessId: BUSINESS_ID,
+    });
+    expect(result.ok).toBe(false);
+    if (!result.ok) {
+      expect(result.error.code).toBe('INVALID_CRM_INPUT');
+    }
+    expect(mockRepo.listContactMethods).not.toHaveBeenCalled();
+  });
+
+  it('rejects invalid businessId', async () => {
+    const result = await service.listContactMethods({
+      customerId: CUSTOMER_ID,
+      businessId: 'bad',
+    });
+    expect(result.ok).toBe(false);
+    if (!result.ok) {
+      expect(result.error.code).toBe('INVALID_CRM_INPUT');
+    }
+    expect(mockRepo.listContactMethods).not.toHaveBeenCalled();
+  });
+});
+
+// ---------------------------------------------------------------------------
 // Tenant isolation
 // ---------------------------------------------------------------------------
 
@@ -425,5 +477,19 @@ describe('CRM tenant isolation', () => {
       businessId: BUSINESS_ID,
     });
     expect(result.ok).toBe(false);
+  });
+
+  it('listContactMethods denies a foreign business and never reaches the repository', async () => {
+    // Ownership gate: customer does not belong to the requesting business.
+    vi.mocked(mockRepo.findCustomerById).mockResolvedValueOnce(ok(null));
+    const result = await service.listContactMethods({
+      customerId: CUSTOMER_ID,
+      businessId: OTHER_BIZ_ID,
+    });
+    expect(result.ok).toBe(false);
+    if (!result.ok) {
+      expect(result.error.code).toBe('CUSTOMER_NOT_FOUND');
+    }
+    expect(mockRepo.listContactMethods).not.toHaveBeenCalled();
   });
 });
