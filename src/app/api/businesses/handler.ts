@@ -25,6 +25,7 @@ import {
   type ContextResult,
 } from '@/app/api/_shared/request-context';
 import { apiError } from '@/app/api/_shared/responses';
+import { assertBusinessRouteMatchesTenant } from '@/app/api/_shared/tenant-route-guard';
 import type { TenancyService } from '@/domains/tenancy/service';
 import type { AuthzService } from '@/domains/authz/service';
 import {
@@ -206,6 +207,16 @@ export function createGetBusinessByIdHandler(
       return contextResult.response;
     }
 
+    // Defense-in-depth backstop (A-H4): deny if the resolved tenant context is
+    // for a different business than the route param, before authz or any read.
+    const mismatch = assertBusinessRouteMatchesTenant(
+      contextResult.context,
+      businessId,
+    );
+    if (mismatch) {
+      return mismatch;
+    }
+
     const authzResult = await deps.authzService.requirePermission({
       userId: contextResult.context.userId,
       businessId: contextResult.context.businessId,
@@ -277,6 +288,16 @@ export function createPatchBusinessByIdHandler(
 
     if (!contextResult.ok) {
       return contextResult.response;
+    }
+
+    // Defense-in-depth backstop (A-H4): deny if the resolved tenant context is
+    // for a different business than the route param, before authz or mutation.
+    const mismatch = assertBusinessRouteMatchesTenant(
+      contextResult.context,
+      businessId,
+    );
+    if (mismatch) {
+      return mismatch;
     }
 
     const authzResult = await deps.authzService.requirePermission({
