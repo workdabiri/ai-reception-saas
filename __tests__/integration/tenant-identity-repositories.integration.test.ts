@@ -6,7 +6,7 @@
 // Normal `pnpm test` skips these tests cleanly.
 // ===========================================================================
 
-import { describe, it, expect, beforeAll, afterAll, afterEach } from 'vitest';
+import { describe, it, expect, beforeAll, afterAll, afterEach, beforeEach } from 'vitest';
 import { PrismaClient } from '@prisma/client';
 import { PrismaPg } from '@prisma/adapter-pg';
 import { randomUUID } from 'crypto';
@@ -17,6 +17,8 @@ import { createTenancyRepository } from '../../src/domains/tenancy/repository';
 import type { TenancyRepositoryDb } from '../../src/domains/tenancy/repository';
 import { createAuditRepository } from '../../src/domains/audit/repository';
 import type { AuditRepositoryDb } from '../../src/domains/audit/repository';
+import { createApiDependencies } from '../../src/app/api/_shared/composition';
+import type { PrismaCompatibleClient } from '../../src/app/api/_shared/composition.types';
 
 // ---------------------------------------------------------------------------
 // Gate
@@ -45,6 +47,12 @@ function assertLocalDatabase(url: string): void {
 // ---------------------------------------------------------------------------
 
 async function cleanDatabase(prisma: PrismaClient): Promise<void> {
+  // FK-safe order: tenant-owned children first, then business, then user.
+  await prisma.replyDraft.deleteMany();
+  await prisma.message.deleteMany();
+  await prisma.conversation.deleteMany();
+  await prisma.customerContactMethod.deleteMany();
+  await prisma.customer.deleteMany();
   await prisma.auditEvent.deleteMany();
   await prisma.session.deleteMany();
   await prisma.businessMembership.deleteMany();
@@ -602,6 +610,324 @@ describeIntegration('Tenant identity repositories integration', () => {
       expect(auditResult.data.businessId).toBe(business.id);
       expect(auditResult.data.actorUserId).toBe(user.id);
       expect(auditResult.data.targetId).toBe(business.id);
+    });
+  });
+
+  // =========================================================================
+  // Cross-Tenant Isolation (A-R1)
+  //
+  // PRD-v1.1 §9 hard gate: prove a Business A context cannot read, list,
+  // mutate, or infer Business B data across the tenant-owned resources —
+  // customers, conversations, messages, and reply drafts.
+  //
+  // Data is seeded through the real repositories (no audit side effects) and
+  // assertions run against the production wiring from
+  // createApiDependencies({ prisma }) — the same services + repositories the
+  // API handlers use — plus the repository scoping primitives and the
+  // Message composite FK (conversation_id, business_id).
+  // =========================================================================
+
+  describe('Cross-Tenant Isolation (A-R1)', () => {
+    let deps: ReturnType<typeof createApiDependencies>;
+
+    // Business A is the "intruder" context; Business B owns the protected data.
+    let aUserId: string;
+    let aBusinessId: string;
+    let aCustomerId: string;
+    let aConversationId: string;
+    let aDraftId: string;
+
+    let bUserId: string;
+    let bBusinessId: string;
+    let bCustomerId: string;
+    let bContactMethodId: string;
+    let bConversationId: string;
+    let bMessageId: string;
+    let bDraftId: string;
+
+    beforeEach(async () => {
+      deps = createApiDependencies({
+        prisma: prisma as unknown as PrismaCompatibleClient,
+      });
+      const { identity, tenancy, crm, conversations, replyDrafts } =
+        deps.repositories;
+      const suffix = randomUUID();
+
+      async function seedBusiness(label: string): Promise<{ userId: string; businessId: string }> {
+        const userRes = await identity.createUser({
+          email: `${label}-owner-${suffix}@example.com`,
+          name: `${label} Owner`,
+          locale: 'en',
+        });
+        if (!userRes.ok) throw new Error(`seed ${label} user failed`);
+        const bizRes = await tenancy.createBusiness({
+          name: `Business ${label}`,
+          slug: `biz-${label}-${suffix}`.slice(0, 64),
+          createdByUserId: userRes.data.id,
+        });
+        if (!bizRes.ok) throw new Error(`seed ${label} business failed`);
+        const memRes = await tenancy.createMembership({
+          businessId: bizRes.data.id,
+          userId: userRes.data.id,
+          role: 'OWNER',
+          status: 'ACTIVE',
+        });
+        if (!memRes.ok) throw new Error(`seed ${label} membership failed`);
+        return { userId: userRes.data.id, businessId: bizRes.data.id };
+      }
+
+      const a = await seedBusiness('a');
+      aUserId = a.userId;
+      aBusinessId = a.businessId;
+      const b = await seedBusiness('b');
+      bUserId = b.userId;
+      bBusinessId = b.businessId;
+
+      // Business A owns a customer, a conversation, and a reply draft (positive controls).
+      const aCustomer = await crm.createCustomer({ businessId: aBusinessId, displayName: 'A Customer' });
+      if (!aCustomer.ok) throw new Error('seed A customer failed');
+      aCustomerId = aCustomer.data.id;
+      const aConv = await conversations.createConversation({ businessId: aBusinessId, channel: 'INTERNAL' });
+      if (!aConv.ok) throw new Error('seed A conversation failed');
+      aConversationId = aConv.data.id;
+      const aDraft = await replyDrafts.createSystemDraft({
+        businessId: aBusinessId,
+        conversationId: aConversationId,
+        createdByUserId: aUserId,
+        draftText: 'A private draft',
+      });
+      if (!aDraft.ok) throw new Error('seed A draft failed');
+      aDraftId = aDraft.data.id;
+
+      // Business B owns the protected rows A must never reach.
+      const bCustomer = await crm.createCustomer({ businessId: bBusinessId, displayName: 'B Customer' });
+      if (!bCustomer.ok) throw new Error('seed B customer failed');
+      bCustomerId = bCustomer.data.id;
+      const bContact = await crm.createContactMethod({
+        customerId: bCustomerId,
+        businessId: bBusinessId,
+        type: 'EMAIL',
+        value: `b-contact-${suffix}@example.com`,
+      });
+      if (!bContact.ok) throw new Error('seed B contact method failed');
+      bContactMethodId = bContact.data.id;
+      const bConv = await conversations.createConversation({
+        businessId: bBusinessId,
+        customerId: bCustomerId,
+        channel: 'INTERNAL',
+      });
+      if (!bConv.ok) throw new Error('seed B conversation failed');
+      bConversationId = bConv.data.id;
+      const bMsg = await conversations.createMessage({
+        conversationId: bConversationId,
+        businessId: bBusinessId,
+        direction: 'OUTBOUND',
+        senderType: 'OPERATOR',
+        senderUserId: bUserId,
+        content: 'B private message',
+      });
+      if (!bMsg.ok) throw new Error('seed B message failed');
+      bMessageId = bMsg.data.id;
+      const bDraft = await replyDrafts.createSystemDraft({
+        businessId: bBusinessId,
+        conversationId: bConversationId,
+        createdByUserId: bUserId,
+        draftText: 'B private draft',
+      });
+      if (!bDraft.ok) throw new Error('seed B draft failed');
+      bDraftId = bDraft.data.id;
+    });
+
+    // -----------------------------------------------------------------------
+    // Customers
+    // -----------------------------------------------------------------------
+
+    it('Customers — Business A cannot read, list, update, archive, or read contact methods of a Business B customer', async () => {
+      const crm = deps.services.crm;
+      const crmRepo = deps.repositories.crm;
+
+      // list — A sees its own customer, never B's
+      const listed = await crm.listCustomers({ businessId: aBusinessId });
+      expect(listed.ok).toBe(true);
+      if (listed.ok) {
+        const ids = listed.data.data.map((c) => c.id);
+        expect(ids).toContain(aCustomerId);
+        expect(ids).not.toContain(bCustomerId);
+      }
+
+      // read (service + repository defense-in-depth) — foreign customer resolves to null
+      const read = await crm.findCustomerById({ customerId: bCustomerId, businessId: aBusinessId });
+      expect(read.ok).toBe(true);
+      if (read.ok) expect(read.data).toBeNull();
+      const repoRead = await crmRepo.findCustomerById(bCustomerId, aBusinessId);
+      expect(repoRead.ok).toBe(true);
+      if (repoRead.ok) expect(repoRead.data).toBeNull();
+
+      // update — denied
+      const upd = await crm.updateCustomer(bCustomerId, aBusinessId, { displayName: 'HACKED' });
+      expect(upd.ok).toBe(false);
+      if (!upd.ok) expect(upd.error.code).toBe('CUSTOMER_NOT_FOUND');
+
+      // archive — denied
+      const arch = await crm.archiveCustomer({ customerId: bCustomerId, businessId: aBusinessId });
+      expect(arch.ok).toBe(false);
+      if (!arch.ok) expect(arch.error.code).toBe('CUSTOMER_NOT_FOUND');
+
+      // contact methods — A cannot list or add to B's customer (service ownership gate)
+      const cmList = await crm.listContactMethods({ customerId: bCustomerId, businessId: aBusinessId });
+      expect(cmList.ok).toBe(false);
+      if (!cmList.ok) expect(cmList.error.code).toBe('CUSTOMER_NOT_FOUND');
+      const cmAdd = await crm.addContactMethod({ customerId: bCustomerId, businessId: aBusinessId, type: 'EMAIL', value: 'intruder@example.com' });
+      expect(cmAdd.ok).toBe(false);
+      if (!cmAdd.ok) expect(cmAdd.error.code).toBe('CUSTOMER_NOT_FOUND');
+
+      // B's customer is intact and still visible to B, with its single contact method
+      const bView = await crm.findCustomerById({ customerId: bCustomerId, businessId: bBusinessId });
+      expect(bView.ok).toBe(true);
+      if (bView.ok) {
+        expect(bView.data).not.toBeNull();
+        expect(bView.data?.displayName).toBe('B Customer');
+        expect(bView.data?.status).toBe('ACTIVE');
+        expect(bView.data?.contactMethods.map((c) => c.id)).toEqual([bContactMethodId]);
+      }
+    });
+
+    // -----------------------------------------------------------------------
+    // Conversations
+    // -----------------------------------------------------------------------
+
+    it('Conversations — Business A cannot read, list, update, or change status of a Business B conversation', async () => {
+      const convService = deps.services.conversations;
+      const convRepo = deps.repositories.conversations;
+
+      // list — A sees its own conversation, never B's
+      const listed = await convService.listConversations({ businessId: aBusinessId });
+      expect(listed.ok).toBe(true);
+      if (listed.ok) {
+        const ids = listed.data.data.map((c) => c.id);
+        expect(ids).toContain(aConversationId);
+        expect(ids).not.toContain(bConversationId);
+      }
+
+      // read (service + repository) — null
+      const read = await convService.findConversationById({ conversationId: bConversationId, businessId: aBusinessId });
+      expect(read.ok).toBe(true);
+      if (read.ok) expect(read.data).toBeNull();
+      const repoRead = await convRepo.findConversationById(bConversationId, aBusinessId);
+      expect(repoRead.ok).toBe(true);
+      if (repoRead.ok) expect(repoRead.data).toBeNull();
+
+      // update — denied
+      const upd = await convService.updateConversation({ conversationId: bConversationId, businessId: aBusinessId, data: { subject: 'HACKED' }, actorUserId: aUserId });
+      expect(upd.ok).toBe(false);
+      if (!upd.ok) expect(upd.error.code).toBe('CONVERSATION_NOT_FOUND');
+
+      // change status — denied
+      const status = await convService.changeStatus({ conversationId: bConversationId, businessId: aBusinessId, toStatus: 'OPEN', actorUserId: aUserId });
+      expect(status.ok).toBe(false);
+      if (!status.ok) expect(status.error.code).toBe('CONVERSATION_NOT_FOUND');
+
+      // B's conversation is intact (no subject, status unchanged) and visible to B
+      const bView = await convService.findConversationById({ conversationId: bConversationId, businessId: bBusinessId });
+      expect(bView.ok).toBe(true);
+      if (bView.ok) {
+        expect(bView.data).not.toBeNull();
+        expect(bView.data?.subject ?? null).toBeNull();
+        expect(bView.data?.status).toBe('NEW');
+      }
+    });
+
+    // -----------------------------------------------------------------------
+    // Messages
+    // -----------------------------------------------------------------------
+
+    it('Messages — Business A cannot read, list, or create messages in a Business B conversation; composite FK blocks cross-business attach', async () => {
+      const convService = deps.services.conversations;
+      const convRepo = deps.repositories.conversations;
+
+      // read message by id (service + repository) — null
+      const read = await convService.findMessageById({ messageId: bMessageId, businessId: aBusinessId });
+      expect(read.ok).toBe(true);
+      if (read.ok) expect(read.data).toBeNull();
+      const repoRead = await convRepo.findMessageById(bMessageId, aBusinessId);
+      expect(repoRead.ok).toBe(true);
+      if (repoRead.ok) expect(repoRead.data).toBeNull();
+
+      // list messages for B's conversation from A — denied at the conversation gate
+      const listed = await convService.listMessages({ conversationId: bConversationId, businessId: aBusinessId });
+      expect(listed.ok).toBe(false);
+      if (!listed.ok) expect(listed.error.code).toBe('CONVERSATION_NOT_FOUND');
+
+      // create a message in B's conversation from A (service) — denied
+      const created = await convService.createMessage({ conversationId: bConversationId, businessId: aBusinessId, direction: 'OUTBOUND', content: 'intruder', senderUserId: aUserId });
+      expect(created.ok).toBe(false);
+      if (!created.ok) expect(created.error.code).toBe('CONVERSATION_NOT_FOUND');
+
+      // composite FK (DB level): repo createMessage with A's businessId + B's conversationId is rejected
+      const fkAttempt = await convRepo.createMessage({ conversationId: bConversationId, businessId: aBusinessId, direction: 'OUTBOUND', senderType: 'OPERATOR', senderUserId: aUserId, content: 'intruder-direct' });
+      expect(fkAttempt.ok).toBe(false);
+      if (!fkAttempt.ok) expect(fkAttempt.error.code).toBe('CONVERSATION_REPOSITORY_ERROR');
+
+      // B's conversation still has exactly its original message, visible only to B
+      const bMessages = await convService.listMessages({ conversationId: bConversationId, businessId: bBusinessId });
+      expect(bMessages.ok).toBe(true);
+      if (bMessages.ok) {
+        expect(bMessages.data.data.map((m) => m.id)).toEqual([bMessageId]);
+      }
+    });
+
+    // -----------------------------------------------------------------------
+    // Reply drafts
+    // -----------------------------------------------------------------------
+
+    it('Reply drafts — Business A cannot read, edit, approve, or discard a Business B reply draft', async () => {
+      const drafts = deps.repositories.replyDrafts;
+
+      // current draft for B's conversation from A — null
+      const current = await drafts.getCurrentByConversation({ businessId: aBusinessId, conversationId: bConversationId });
+      expect(current.ok).toBe(true);
+      if (current.ok) expect(current.data.draft).toBeNull();
+
+      // scoped find with A's businessId — null (scope guard)
+      const found = await drafts.findByBusinessConversationAndId(aBusinessId, bConversationId, bDraftId);
+      expect(found.ok).toBe(true);
+      if (found.ok) expect(found.data).toBeNull();
+
+      // latest reviewable for B's conversation from A — null (A's generate path cannot reuse B's draft)
+      const latest = await drafts.findLatestReviewableByConversation(aBusinessId, bConversationId);
+      expect(latest.ok).toBe(true);
+      if (latest.ok) expect(latest.data).toBeNull();
+
+      // edit / approve / discard — all denied with DRAFT_NOT_FOUND
+      const edit = await drafts.editDraft({ businessId: aBusinessId, conversationId: bConversationId, draftId: bDraftId, draftText: 'HACKED' });
+      expect(edit.ok).toBe(false);
+      if (!edit.ok) expect(edit.error.code).toBe('DRAFT_NOT_FOUND');
+      const approve = await drafts.approveDraft({ businessId: aBusinessId, conversationId: bConversationId, draftId: bDraftId, reviewedByUserId: aUserId });
+      expect(approve.ok).toBe(false);
+      if (!approve.ok) expect(approve.error.code).toBe('DRAFT_NOT_FOUND');
+      const discard = await drafts.discardDraft({ businessId: aBusinessId, conversationId: bConversationId, draftId: bDraftId, reviewedByUserId: aUserId });
+      expect(discard.ok).toBe(false);
+      if (!discard.ok) expect(discard.error.code).toBe('DRAFT_NOT_FOUND');
+
+      // dashboard — A sees only its own draft, never B's
+      const dash = await drafts.getDashboardDrafts(aBusinessId, 50);
+      expect(dash.ok).toBe(true);
+      if (dash.ok) {
+        const ids = dash.data.drafts.map((d) => d.id);
+        expect(ids).toContain(aDraftId);
+        expect(ids).not.toContain(bDraftId);
+        expect(dash.data.pendingCount).toBe(1);
+      }
+
+      // B's draft is intact (text + status unchanged) and visible to B
+      const bView = await drafts.getCurrentByConversation({ businessId: bBusinessId, conversationId: bConversationId });
+      expect(bView.ok).toBe(true);
+      if (bView.ok) {
+        expect(bView.data.draft).not.toBeNull();
+        expect(bView.data.draft?.id).toBe(bDraftId);
+        expect(bView.data.draft?.status).toBe('PENDING_REVIEW');
+        expect(bView.data.draft?.draftText).toBe('B private draft');
+      }
     });
   });
 });
