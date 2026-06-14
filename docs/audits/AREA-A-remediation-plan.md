@@ -4,6 +4,8 @@
 
 This is a **planning artifact only**. It contains no code, no patches, and no Claude Code prompts. It sequences the Area A audit's pre-real-data blockers and pre-scale hardening into an ordered, acceptance-criteria-driven plan. PRD-v1.1 and the Area A audit are unchanged.
 
+> **Status update (2026-06-15):** the Area A real-data blockers and the recommended contact-method / middleware-backstop hardening have been **executed and merged**. Completed workstreams: **A-R1** (#89), **A-R1.1** (#93, CI integration gate), **A-R2** (#87), **A-R3** (#88), **A-R4** (#90), **A-H3** (#94), **A-H4** (#91), **A-H4.2** (#92). The backend authorization / tenant-isolation data plane is **GREEN through PR #94**. The remaining items (**A-H1**, **A-H2**, concurrent multi-tenant tests, stronger route-backstop rule, and the Area C / Area B handoffs **A-R5** / **A-R6**) are still open. The **current status reference is now `docs/audits/AREA-A-closure-checkpoint.md`**; this plan is preserved as the historical sequencing artifact. Full private-alpha real-data readiness remains conditional on Area B (AI) and Area C (widget) and operational checks — it is **not** GREEN.
+
 ---
 
 ## 1\. Title and Status
@@ -195,13 +197,13 @@ Steps 1–4 (plus A-H3) are the **one-real-business gate**. Steps 5–7 are requ
 
 ### Before ONE real design-partner business
 
-- [ ] **A-R3** complete — ACTIVE-membership \+ suspended-business resolution source-verified (+ tests).  
-- [ ] **A-R2** complete — enforced dev-bypass deployment guard (startup assertion \+ CI/deploy check \+ tests).  
-- [ ] **A-R1** complete — green real-DB cross-tenant isolation suite for customers, contact-methods, conversations, messages, reply-drafts.  
-- [ ] **A-R4** complete — OPERATOR/VIEWER negative-boundary tests green.  
-- [ ] **A-H3** complete — contact-methods businessId guard \+ test.  
-- [ ] *(If widget is the channel)* **A-R5** built under Area C with ingest isolation tests.  
-- [ ] *(If AI on)* **A-R6 / Area B** AI context isolation \+ provenance \+ `aiMode` \+ kill switch.
+- [x] **A-R3** complete (#88) — ACTIVE-membership \+ suspended-business resolution source-verified (+ tests).
+- [x] **A-R2** complete (#87) — enforced dev-bypass deployment guard (startup assertion \+ CI/deploy check \+ tests).
+- [x] **A-R1** complete (#89) — green real-DB cross-tenant isolation suite for customers, contact-methods, conversations, messages, reply-drafts; runs in CI behind the integration gate (**A-R1.1**, #93).
+- [x] **A-R4** complete (#90) — OPERATOR/VIEWER negative-boundary tests green.
+- [x] **A-H3** complete (#94) — contact-methods businessId guard \+ test.
+- [ ] *(If widget is the channel)* **A-R5** built under Area C with ingest isolation tests. *(open — Area C)*
+- [ ] *(If AI on)* **A-R6 / Area B** AI context isolation \+ provenance \+ `aiMode` \+ kill switch. *(open — Area B)*
 
 ### Before TWO or THREE separate real businesses
 
