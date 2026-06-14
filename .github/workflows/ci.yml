@@ -48,3 +48,79 @@ jobs:
 
       - name: Test
         run: pnpm test
+
+  # ===========================================================================
+  # Area A pre-real-data tenant-isolation CI gate (A-R1.1)
+  #
+  # The real-DB cross-tenant isolation integration suite (A-R1) is gated by
+  # RUN_INTEGRATION_TESTS and is skipped by the normal unit-test job above.
+  # This dedicated job runs that suite against an EPHEMERAL PostgreSQL service
+  # so the pre-real-data tenant-isolation hard gate (PRD-v1.1 §9) is actually
+  # exercised in CI — not just defined.
+  #
+  # The Postgres service container is created fresh for each run and torn down
+  # afterwards. It NEVER points at a persistent or real database: DATABASE_URL
+  # below is a local, test-only connection string, and the suite itself refuses
+  # to run against any host that is not localhost / 127.0.0.1.
+  # ===========================================================================
+  tenant-isolation-integration:
+    name: Tenant Isolation Integration (A-R1 real DB)
+    runs-on: ubuntu-latest
+
+    strategy:
+      matrix:
+        node-version: [20]
+
+    # Ephemeral, test-only PostgreSQL. Discarded when the job finishes.
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: aia_ci_test
+        ports:
+          - 5432:5432
+        # Wait until Postgres is actually accepting connections before any step
+        # tries to migrate or query it.
+        options: >-
+          --health-cmd "pg_isready -U postgres"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
+    env:
+      # Test-only, CI-local connection string. Points exclusively at the
+      # ephemeral service above — never a persistent or real database.
+      DATABASE_URL: 'postgresql://postgres:postgres@localhost:5432/aia_ci_test?schema=public'
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+
+      - name: Setup Node.js ${{ matrix.node-version }}
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ matrix.node-version }}
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Generate Prisma client
+        run: pnpm prisma:generate
+
+      # Apply committed migrations with the safe, non-interactive deploy command
+      # (never `migrate dev`) against the ephemeral test database.
+      - name: Run migrations (deploy)
+        run: pnpm exec prisma migrate deploy
+
+      # Run ONLY the gated real-DB cross-tenant isolation integration suite,
+      # with the integration gate explicitly enabled.
+      - name: Run tenant-isolation integration suite
+        env:
+          RUN_INTEGRATION_TESTS: 'true'
+        run: pnpm exec vitest run __tests__/integration/tenant-identity-repositories.integration.test.ts
