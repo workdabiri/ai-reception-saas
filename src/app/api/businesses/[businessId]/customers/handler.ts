@@ -26,6 +26,7 @@ import {
   type ContextResult,
 } from '@/app/api/_shared/request-context';
 import { apiError } from '@/app/api/_shared/responses';
+import { assertBusinessRouteMatchesTenant } from '@/app/api/_shared/tenant-route-guard';
 import type { CrmService } from '@/domains/crm/service';
 import type { AuthzService } from '@/domains/authz/service';
 import type { AuthzPermission } from '@/domains/authz/types';
@@ -122,16 +123,6 @@ export interface CustomerHandlerDeps {
 // ---------------------------------------------------------------------------
 // Shared helpers
 // ---------------------------------------------------------------------------
-
-function assertBusinessRouteMatchesTenant(
-  context: TenantRequestContext,
-  businessId: string,
-): Response | null {
-  if (businessId !== context.businessId) {
-    return apiError('TENANT_ACCESS_DENIED', 'Tenant access denied', 403);
-  }
-  return null;
-}
 
 async function requireCustomerPermission(
   deps: CustomerHandlerDeps,
