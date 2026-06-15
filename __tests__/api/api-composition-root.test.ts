@@ -310,6 +310,46 @@ function createMockPrisma(): PrismaCompatibleClient {
         updatedAt: new Date(),
       }),
     },
+    businessContextItem: {
+      create: () =>
+        Promise.resolve({
+          id: 'mock',
+          businessId: 'mock',
+          category: 'hours',
+          key: 'monday',
+          value: 'mock',
+          status: 'DRAFT' as const,
+          sourceType: 'OWNER_APPROVED' as const,
+          sourceLabel: null,
+          sourceUrl: null,
+          sourceMetadata: null,
+          verifiedByUserId: null,
+          verifiedAt: null,
+          createdByUserId: null,
+          createdAt: new Date(),
+          updatedAt: new Date(),
+        }),
+      findMany: () => Promise.resolve([]),
+      findUnique: () => Promise.resolve(null),
+      update: () =>
+        Promise.resolve({
+          id: 'mock',
+          businessId: 'mock',
+          category: 'hours',
+          key: 'monday',
+          value: 'mock',
+          status: 'VERIFIED' as const,
+          sourceType: 'OWNER_APPROVED' as const,
+          sourceLabel: null,
+          sourceUrl: null,
+          sourceMetadata: null,
+          verifiedByUserId: 'mock-user',
+          verifiedAt: new Date(),
+          createdByUserId: null,
+          createdAt: new Date(),
+          updatedAt: new Date(),
+        }),
+    },
   };
 }
 
@@ -333,6 +373,7 @@ describe('createApiDependencies', () => {
         expect(deps.repositories.conversations).toBeDefined();
         expect(deps.repositories.replyDrafts).toBeDefined();
         expect(deps.repositories.aiConfig).toBeDefined();
+        expect(deps.repositories.knowledge).toBeDefined();
 
         // Services
         expect(deps.services.identity).toBeDefined();
@@ -342,6 +383,7 @@ describe('createApiDependencies', () => {
         expect(deps.services.crm).toBeDefined();
         expect(deps.services.conversations).toBeDefined();
         expect(deps.services.aiConfig).toBeDefined();
+        expect(deps.services.knowledge).toBeDefined();
       },
     );
   });
@@ -392,6 +434,23 @@ describe('createApiDependencies', () => {
         expect(typeof deps.repositories.crm.findByContactMethod).toBe(
           'function',
         );
+
+        // Knowledge repository methods (B-R2)
+        expect(typeof deps.repositories.knowledge.createItem).toBe(
+          'function',
+        );
+        expect(typeof deps.repositories.knowledge.listVerifiedByBusiness).toBe(
+          'function',
+        );
+        expect(typeof deps.repositories.knowledge.findByBusinessAndId).toBe(
+          'function',
+        );
+        expect(typeof deps.repositories.knowledge.verifyItem).toBe(
+          'function',
+        );
+        expect(typeof deps.repositories.knowledge.archiveItem).toBe(
+          'function',
+        );
       },
     );
   });
@@ -436,6 +495,14 @@ describe('createApiDependencies', () => {
 
         // AI config service methods (B-R1)
         expect(typeof deps.services.aiConfig.resolveAiPolicy).toBe('function');
+
+        // Knowledge service methods (B-R2)
+        expect(typeof deps.services.knowledge.createItem).toBe('function');
+        expect(typeof deps.services.knowledge.listVerifiedItems).toBe(
+          'function',
+        );
+        expect(typeof deps.services.knowledge.verifyItem).toBe('function');
+        expect(typeof deps.services.knowledge.archiveItem).toBe('function');
       },
     );
   });
