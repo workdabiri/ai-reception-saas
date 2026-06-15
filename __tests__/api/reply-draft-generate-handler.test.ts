@@ -65,6 +65,13 @@ vi.mock('@/app/api/_shared/composition', () => ({
     },
     services: {
       authz: { requirePermission: vi.fn().mockResolvedValue(ok({ allowed: true })) },
+      aiConfig: {
+        resolveAiPolicy: vi.fn().mockResolvedValue(ok({
+          businessId: BIZ_ID,
+          aiMode: 'AI_ASSISTED',
+          aiGenerationEnabled: true,
+        })),
+      },
     },
   }),
 }));
@@ -85,6 +92,9 @@ function mockDeps(): GenerateStubDraftHandlerDeps & {
   };
   authzService: {
     requirePermission: ReturnType<typeof vi.fn>;
+  };
+  aiConfigService: {
+    resolveAiPolicy: ReturnType<typeof vi.fn>;
   };
 } {
   return {
@@ -112,6 +122,14 @@ function mockDeps(): GenerateStubDraftHandlerDeps & {
     },
     authzService: {
       requirePermission: vi.fn().mockResolvedValue(ok({ allowed: true })),
+    },
+    // Default: AI enabled (AI_ASSISTED) so existing happy-path tests proceed.
+    aiConfigService: {
+      resolveAiPolicy: vi.fn().mockResolvedValue(ok({
+        businessId: BIZ_ID,
+        aiMode: 'AI_ASSISTED',
+        aiGenerationEnabled: true,
+      })),
     },
   };
 }
@@ -221,6 +239,87 @@ describe('Generate Stub Draft Handler', () => {
     const h = createGenerateStubDraftHandler({ ...d, resolveTenantContext: okTenant({ role: 'OPERATOR' }) });
     const r = await h(new Request('http://x', { method: 'POST' }), P);
     expect(r.status).toBe(200);
+  });
+
+  // -------------------------------------------------------------------------
+  // B-R1 — Business AI mode gate (fail closed when AI disabled)
+  // -------------------------------------------------------------------------
+
+  function disabledPolicy(aiMode: 'MANUAL' | 'AI_ASSISTED' = 'MANUAL') {
+    return ok({ businessId: BIZ_ID, aiMode, aiGenerationEnabled: false });
+  }
+
+  it('fails closed with AI_DISABLED when business AI mode is MANUAL', async () => {
+    const d = mockDeps();
+    d.aiConfigService.resolveAiPolicy.mockResolvedValue(disabledPolicy('MANUAL'));
+    const h = createGenerateStubDraftHandler({ ...d, resolveTenantContext: okTenant() });
+    const r = await h(new Request('http://x', { method: 'POST' }), P);
+    expect(r.status).toBe(403);
+    expect((await r.json()).error.code).toBe('AI_DISABLED');
+  });
+
+  it('creates NO draft when AI is disabled (no provider, no generation)', async () => {
+    const d = mockDeps();
+    d.aiConfigService.resolveAiPolicy.mockResolvedValue(disabledPolicy('MANUAL'));
+    const h = createGenerateStubDraftHandler({ ...d, resolveTenantContext: okTenant() });
+    await h(new Request('http://x', { method: 'POST' }), P);
+    expect(d.replyDraftRepository.generateOrReuseStubDraft).not.toHaveBeenCalled();
+    // Gate is before conversation lookup — no generation work happens at all.
+    expect(d.conversationRepository.findConversationById).not.toHaveBeenCalled();
+    expect(d.conversationRepository.updateConversation).not.toHaveBeenCalled();
+  });
+
+  it('fails closed when resolver returns disabled even with AI_ASSISTED label', async () => {
+    // aiGenerationEnabled is the single source of truth — a mismatched label
+    // must not enable generation.
+    const d = mockDeps();
+    d.aiConfigService.resolveAiPolicy.mockResolvedValue(disabledPolicy('AI_ASSISTED'));
+    const h = createGenerateStubDraftHandler({ ...d, resolveTenantContext: okTenant() });
+    const r = await h(new Request('http://x', { method: 'POST' }), P);
+    expect(r.status).toBe(403);
+    expect(d.replyDraftRepository.generateOrReuseStubDraft).not.toHaveBeenCalled();
+  });
+
+  it('fails closed when resolver errs', async () => {
+    const d = mockDeps();
+    d.aiConfigService.resolveAiPolicy.mockResolvedValue(err('AI_CONFIG_REPOSITORY_ERROR', 'boom'));
+    const h = createGenerateStubDraftHandler({ ...d, resolveTenantContext: okTenant() });
+    const r = await h(new Request('http://x', { method: 'POST' }), P);
+    expect(r.status).toBe(403);
+    expect((await r.json()).error.code).toBe('AI_DISABLED');
+    expect(d.replyDraftRepository.generateOrReuseStubDraft).not.toHaveBeenCalled();
+  });
+
+  it('proceeds to the deterministic stub only when AI is AI_ASSISTED', async () => {
+    const d = mockDeps();
+    d.aiConfigService.resolveAiPolicy.mockResolvedValue(ok({
+      businessId: BIZ_ID, aiMode: 'AI_ASSISTED', aiGenerationEnabled: true,
+    }));
+    const h = createGenerateStubDraftHandler({ ...d, resolveTenantContext: okTenant() });
+    const r = await h(new Request('http://x', { method: 'POST' }), P);
+    expect(r.status).toBe(200);
+    expect(d.replyDraftRepository.generateOrReuseStubDraft).toHaveBeenCalledWith(
+      expect.objectContaining({ draftText: STUB_DRAFT_TEXT }),
+    );
+  });
+
+  it('resolves AI policy from the SERVER-SIDE tenant context businessId', async () => {
+    const d = mockDeps();
+    const h = createGenerateStubDraftHandler({ ...d, resolveTenantContext: okTenant() });
+    await h(new Request('http://x', { method: 'POST' }), P);
+    // The resolver receives the server-resolved tenant context, whose
+    // businessId is BIZ_ID — never a raw client value.
+    expect(d.aiConfigService.resolveAiPolicy).toHaveBeenCalledWith(
+      expect.objectContaining({ businessId: BIZ_ID }),
+    );
+  });
+
+  it('gate runs after authz (denied authz never reaches AI resolver)', async () => {
+    const d = mockDeps();
+    d.authzService.requirePermission.mockResolvedValue(ok({ allowed: false }));
+    const h = createGenerateStubDraftHandler({ ...d, resolveTenantContext: okTenant() });
+    await h(new Request('http://x', { method: 'POST' }), P);
+    expect(d.aiConfigService.resolveAiPolicy).not.toHaveBeenCalled();
   });
 
   // -------------------------------------------------------------------------

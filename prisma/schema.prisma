@@ -136,6 +136,15 @@ enum ReplyDraftStatus {
   SENT
 }
 
+// Per-business AI operating mode (PRD-v1.1 §5).
+// MANUAL = Level 1 (default, AI generation disabled / fail closed).
+// AI_ASSISTED = Level 2 (AI-assisted drafts; explicit per-business opt-in).
+// Level 3 / Auto Pilot is future-only and intentionally NOT represented here.
+enum BusinessAiMode {
+  MANUAL
+  AI_ASSISTED
+}
+
 // ===========================================================================
 // Models — Identity Domain
 // ===========================================================================
@@ -191,6 +200,7 @@ model Business {
   name            String
   slug            String         @unique
   status          BusinessStatus @default(ACTIVE)
+  aiMode          BusinessAiMode @default(MANUAL) @map("ai_mode")
   timezone        String         @default("Asia/Tehran")
   locale          String         @default("fa")
   createdByUserId String         @map("created_by_user_id") @db.Uuid

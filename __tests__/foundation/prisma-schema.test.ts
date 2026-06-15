@@ -838,6 +838,58 @@ describe('Prisma Schema — Reply Drafts Domain', () => {
 });
 
 // ---------------------------------------------------------------------------
+// Business AI Mode tests (B-R1)
+// ---------------------------------------------------------------------------
+
+describe('Prisma Schema — Business AI Mode (B-R1)', () => {
+  it('defines BusinessAiMode enum with MANUAL, AI_ASSISTED', () => {
+    expect(enumExists('BusinessAiMode')).toBe(true);
+    expect(enumHasValue('BusinessAiMode', 'MANUAL')).toBe(true);
+    expect(enumHasValue('BusinessAiMode', 'AI_ASSISTED')).toBe(true);
+  });
+
+  it('BusinessAiMode does NOT include Level 3 / Auto Pilot', () => {
+    expect(enumHasValue('BusinessAiMode', 'AUTO_PILOT')).toBe(false);
+    expect(enumHasValue('BusinessAiMode', 'AUTOPILOT')).toBe(false);
+  });
+
+  it('Business has aiMode field defaulting to MANUAL, mapped to ai_mode', () => {
+    const model = schema.match(/model\s+Business\s*\{([\s\S]+?)\}/);
+    expect(model).not.toBeNull();
+    const aiModeLine = model![1].match(/^\s+aiMode\s+.*/m);
+    expect(aiModeLine).not.toBeNull();
+    expect(aiModeLine![0]).toContain('BusinessAiMode');
+    expect(aiModeLine![0]).toContain('@default(MANUAL)');
+    expect(aiModeLine![0]).toContain('@map("ai_mode")');
+  });
+});
+
+describe('Prisma Schema — Business AI Mode Migration (B-R1)', () => {
+  const migrationPath = path.resolve(
+    __dirname,
+    '../../prisma/migrations/20260615_add_business_ai_mode/migration.sql',
+  );
+
+  it('migration file exists', () => {
+    expect(fs.existsSync(migrationPath)).toBe(true);
+  });
+
+  it('migration creates BusinessAiMode enum', () => {
+    const sql = fs.readFileSync(migrationPath, 'utf-8');
+    expect(sql).toContain('CREATE TYPE "BusinessAiMode"');
+    expect(sql).toContain("'MANUAL'");
+    expect(sql).toContain("'AI_ASSISTED'");
+  });
+
+  it('migration adds ai_mode column NOT NULL defaulting to MANUAL (backfill-safe)', () => {
+    const sql = fs.readFileSync(migrationPath, 'utf-8');
+    expect(sql).toContain('ALTER TABLE "businesses"');
+    expect(sql).toContain('ADD COLUMN "ai_mode"');
+    expect(sql).toMatch(/"ai_mode"\s+"BusinessAiMode"\s+NOT NULL\s+DEFAULT 'MANUAL'/);
+  });
+});
+
+// ---------------------------------------------------------------------------
 // Reply Drafts Migration tests
 // ---------------------------------------------------------------------------
 

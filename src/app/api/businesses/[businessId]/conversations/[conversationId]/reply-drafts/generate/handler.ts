@@ -7,6 +7,10 @@
 // Reuses existing reviewable draft if one exists.
 // Does NOT send any message. Does NOT use LLM.
 // Permission: ai_drafts.generate (OPERATOR, ADMIN, OWNER).
+//
+// B-R1 gate: generation is gated by the per-business AI mode (PRD-v1.1 §5).
+// AI is OFF by default; when AI is disabled (MANUAL / fail-closed) this handler
+// returns a clean "AI disabled" result, creates NO draft, and calls NO provider.
 // ===========================================================================
 
 import { z } from 'zod';
@@ -24,6 +28,7 @@ import type { AuthzService } from '@/domains/authz/service';
 import type { AuthzPermission } from '@/domains/authz/types';
 import type { ConversationRepository } from '@/domains/conversations/repository';
 import type { ReplyDraftRepository } from '@/domains/reply-drafts/repository';
+import type { AiConfigService } from '@/domains/ai-config/service';
 
 // ---------------------------------------------------------------------------
 // Constants
@@ -61,6 +66,7 @@ export interface GenerateStubDraftHandlerDeps {
     'findConversationById' | 'updateConversation'
   >;
   readonly authzService: Pick<AuthzService, 'requirePermission'>;
+  readonly aiConfigService: Pick<AiConfigService, 'resolveAiPolicy'>;
   readonly resolveTenantContext?: (
     request: Request,
     scope?: TenantRequestScope,
@@ -105,10 +111,11 @@ async function requirePermission(
  * 2. Resolve tenant context
  * 3. Check businessId matches tenant
  * 4. Require ai_drafts.generate permission
- * 5. Verify conversation exists and belongs to business
- * 6. Generate or reuse SYSTEM stub draft
- * 7. Reconcile Conversation.aiDraftStatus to READY
- * 8. Return result
+ * 5. Resolve business AI mode (server-side); fail closed if AI disabled
+ * 6. Verify conversation exists and belongs to business
+ * 7. Generate or reuse SYSTEM stub draft
+ * 8. Reconcile Conversation.aiDraftStatus to READY
+ * 9. Return result
  */
 export function createGenerateStubDraftHandler(
   deps: GenerateStubDraftHandlerDeps,
@@ -148,7 +155,22 @@ export function createGenerateStubDraftHandler(
     );
     if (authzErr) return authzErr;
 
-    // 5. Verify conversation exists and belongs to business
+    // 5. Resolve business AI mode and fail closed when AI is disabled.
+    // Resolution uses the SERVER-SIDE tenant context (never the client-
+    // supplied route param). When AI is off (default MANUAL, missing/invalid
+    // state, or lookup error) no draft is created and no provider is called.
+    const aiPolicyResult = await deps.aiConfigService.resolveAiPolicy(
+      contextResult.context,
+    );
+    if (!aiPolicyResult.ok || !aiPolicyResult.data.aiGenerationEnabled) {
+      return apiError(
+        'AI_DISABLED',
+        'AI generation is disabled for this business',
+        403,
+      );
+    }
+
+    // 6. Verify conversation exists and belongs to business
     const convResult = await deps.conversationRepository.findConversationById(
       conversationId,
       businessId,
@@ -164,7 +186,7 @@ export function createGenerateStubDraftHandler(
       );
     }
 
-    // 6. Generate or reuse stub draft
+    // 7. Generate or reuse stub draft
     const draftResult = await deps.replyDraftRepository.generateOrReuseStubDraft({
       businessId,
       conversationId,
@@ -175,7 +197,7 @@ export function createGenerateStubDraftHandler(
       return actionResultToResponse(draftResult);
     }
 
-    // 7. Reconcile Conversation.aiDraftStatus to READY
+    // 8. Reconcile Conversation.aiDraftStatus to READY
     // Best-effort reconciliation — whether the draft was newly created
     // or reused, ensure Conversation.aiDraftStatus reflects the
     // existence of a reviewable draft. This covers the edge case where
@@ -192,7 +214,7 @@ export function createGenerateStubDraftHandler(
       );
     }
 
-    // 8. Return result
+    // 9. Return result
     return apiOk({
       businessId,
       conversationId,
