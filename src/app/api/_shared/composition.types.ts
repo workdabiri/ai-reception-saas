@@ -22,6 +22,7 @@ import type { CrmService } from '@/domains/crm/service';
 import type { ConversationService } from '@/domains/conversations/service';
 import type { AiConfigService } from '@/domains/ai-config/service';
 import type { KnowledgeService } from '@/domains/knowledge/service';
+import type { AiRuntimeService } from '@/domains/ai-runtime/service';
 
 import type { IdentityRepositoryDb } from '@/domains/identity/repository';
 import type { TenancyRepositoryDb } from '@/domains/tenancy/repository';
@@ -58,6 +59,7 @@ export interface ApiServices {
   readonly conversations: ConversationService;
   readonly aiConfig: AiConfigService;
   readonly knowledge: KnowledgeService;
+  readonly aiRuntime: AiRuntimeService;
 }
 
 /** Complete API dependency container */
