@@ -332,6 +332,7 @@ describe('createApiDependencies', () => {
         expect(deps.repositories.crm).toBeDefined();
         expect(deps.repositories.conversations).toBeDefined();
         expect(deps.repositories.replyDrafts).toBeDefined();
+        expect(deps.repositories.aiConfig).toBeDefined();
 
         // Services
         expect(deps.services.identity).toBeDefined();
@@ -340,6 +341,7 @@ describe('createApiDependencies', () => {
         expect(deps.services.audit).toBeDefined();
         expect(deps.services.crm).toBeDefined();
         expect(deps.services.conversations).toBeDefined();
+        expect(deps.services.aiConfig).toBeDefined();
       },
     );
   });
@@ -431,6 +433,9 @@ describe('createApiDependencies', () => {
         expect(typeof deps.services.crm.findOrCreateByContact).toBe('function');
         expect(typeof deps.services.crm.addContactMethod).toBe('function');
         expect(typeof deps.services.crm.removeContactMethod).toBe('function');
+
+        // AI config service methods (B-R1)
+        expect(typeof deps.services.aiConfig.resolveAiPolicy).toBe('function');
       },
     );
   });

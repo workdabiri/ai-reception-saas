@@ -41,6 +41,7 @@ export async function POST(
       replyDraftRepository: deps.repositories.replyDrafts,
       conversationRepository: deps.repositories.conversations,
       authzService: deps.services.authz,
+      aiConfigService: deps.services.aiConfig,
     });
     return handler(request, params);
   });
