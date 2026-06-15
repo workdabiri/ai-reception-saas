@@ -145,6 +145,29 @@ enum BusinessAiMode {
   AI_ASSISTED
 }
 
+// Knowledge Domain — verified business-context store (PRD-v1.1 §5.1, B-R2).
+//
+// Lifecycle/verification state of a business-context item. Only VERIFIED items
+// are eligible to later back AI prompt context; DRAFT and ARCHIVED items must
+// never be treated as usable AI context. This is the B-R2 provenance invariant.
+enum BusinessContextItemStatus {
+  DRAFT
+  VERIFIED
+  ARCHIVED
+}
+
+// Provenance of a business-context item's content. "Verified" provenance means
+// business-approved/entered data (owner/operator approved, system-seeded, or
+// imported business-owned data) — NOT model-prior knowledge, inference,
+// scraped, or guessed data (§5.1).
+enum BusinessContextItemSourceType {
+  OWNER_APPROVED
+  OPERATOR_APPROVED
+  SYSTEM_SEEDED
+  IMPORT
+  OTHER
+}
+
 // ===========================================================================
 // Models — Identity Domain
 // ===========================================================================
@@ -215,6 +238,7 @@ model Business {
   conversations          Conversation[]
   conversationMessages   Message[]
   replyDrafts            ReplyDraft[]
+  businessContextItems   BusinessContextItem[]
 
   @@index([status])
   @@index([createdByUserId])
@@ -448,4 +472,46 @@ model ReplyDraft {
   @@index([conversationId, status])
   @@index([businessId, createdAt])
   @@map("reply_drafts")
+}
+
+// ===========================================================================
+// Models — Knowledge Domain (B-R2)
+// ===========================================================================
+
+// Tenant-scoped, verified business-context store with provenance (PRD-v1.1
+// §5.1, B-R2). Holds business-approved facts (hours, address/location notes,
+// service/menu facts, booking rules, delivery rules, FAQ answers, policies,
+// and other business-owned knowledge).
+//
+// Each item carries a verification `status` and provenance (`sourceType` +
+// source fields + verifier) so that ONLY VERIFIED, business-approved context
+// may later be eligible for AI prompt usage. Unverified (DRAFT) or ARCHIVED
+// items must never be treated as usable AI context.
+//
+// This model stores data only. It assembles no prompts (B-R5) and calls no AI
+// provider (B-R4); it holds no customer / conversation / message content.
+model BusinessContextItem {
+  id               String                        @id @default(uuid()) @db.Uuid
+  businessId       String                        @map("business_id") @db.Uuid
+  category         String
+  key              String
+  value            String                        @db.Text
+  status           BusinessContextItemStatus     @default(DRAFT)
+  sourceType       BusinessContextItemSourceType @map("source_type")
+  sourceLabel      String?                       @map("source_label")
+  sourceUrl        String?                       @map("source_url")
+  sourceMetadata   Json?                         @map("source_metadata")
+  verifiedByUserId String?                       @map("verified_by_user_id") @db.Uuid
+  verifiedAt       DateTime?                     @map("verified_at")
+  createdByUserId  String?                       @map("created_by_user_id") @db.Uuid
+  createdAt        DateTime                      @default(now()) @map("created_at")
+  updatedAt        DateTime                      @updatedAt @map("updated_at")
+
+  business Business @relation(fields: [businessId], references: [id])
+
+  @@unique([id, businessId])
+  @@index([businessId])
+  @@index([businessId, status])
+  @@index([businessId, category])
+  @@map("business_context_items")
 }

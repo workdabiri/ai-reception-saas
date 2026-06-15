@@ -12,6 +12,7 @@ import type { CrmRepository } from '@/domains/crm/repository';
 import type { ConversationRepository } from '@/domains/conversations/repository';
 import type { ReplyDraftRepository } from '@/domains/reply-drafts/repository';
 import type { AiConfigRepository } from '@/domains/ai-config/repository';
+import type { KnowledgeRepository } from '@/domains/knowledge/repository';
 
 import type { IdentityService } from '@/domains/identity/service';
 import type { TenancyService } from '@/domains/tenancy/service';
@@ -20,6 +21,7 @@ import type { AuditService } from '@/domains/audit/service';
 import type { CrmService } from '@/domains/crm/service';
 import type { ConversationService } from '@/domains/conversations/service';
 import type { AiConfigService } from '@/domains/ai-config/service';
+import type { KnowledgeService } from '@/domains/knowledge/service';
 
 import type { IdentityRepositoryDb } from '@/domains/identity/repository';
 import type { TenancyRepositoryDb } from '@/domains/tenancy/repository';
@@ -28,6 +30,7 @@ import type { CrmRepositoryDb } from '@/domains/crm/repository';
 import type { ConversationRepositoryDb } from '@/domains/conversations/repository';
 import type { ReplyDraftRepositoryDb } from '@/domains/reply-drafts/repository';
 import type { AiConfigRepositoryDb } from '@/domains/ai-config/repository';
+import type { KnowledgeRepositoryDb } from '@/domains/knowledge/repository';
 
 // ---------------------------------------------------------------------------
 // Container types
@@ -42,6 +45,7 @@ export interface ApiRepositories {
   readonly conversations: ConversationRepository;
   readonly replyDrafts: ReplyDraftRepository;
   readonly aiConfig: AiConfigRepository;
+  readonly knowledge: KnowledgeRepository;
 }
 
 /** All services available to API handlers */
@@ -53,6 +57,7 @@ export interface ApiServices {
   readonly crm: CrmService;
   readonly conversations: ConversationService;
   readonly aiConfig: AiConfigService;
+  readonly knowledge: KnowledgeService;
 }
 
 /** Complete API dependency container */
@@ -81,7 +86,8 @@ export type PrismaCompatibleClient = IdentityRepositoryDb &
   CrmRepositoryDb &
   ConversationRepositoryDb &
   ReplyDraftRepositoryDb &
-  AiConfigRepositoryDb;
+  AiConfigRepositoryDb &
+  KnowledgeRepositoryDb;
 
 /** Options for creating the API dependency container */
 export interface ApiCompositionOptions {

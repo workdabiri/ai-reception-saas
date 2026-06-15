@@ -37,6 +37,10 @@ import {
   createAiConfigRepository,
   type AiConfigRepositoryDb,
 } from '@/domains/ai-config/repository';
+import {
+  createKnowledgeRepository,
+  type KnowledgeRepositoryDb,
+} from '@/domains/knowledge/repository';
 
 import { createIdentityService } from '@/domains/identity/implementation';
 import { createTenancyService } from '@/domains/tenancy/implementation';
@@ -45,6 +49,7 @@ import { createAuditService } from '@/domains/audit/implementation';
 import { createCrmService } from '@/domains/crm/implementation';
 import { createConversationService } from '@/domains/conversations/implementation';
 import { createAiConfigService } from '@/domains/ai-config/implementation';
+import { createKnowledgeService } from '@/domains/knowledge/implementation';
 
 import type {
   ApiDependencies,
@@ -123,6 +128,15 @@ function toAiConfigRepositoryDb(
   };
 }
 
+/** Extracts only the delegates required by KnowledgeRepositoryDb */
+function toKnowledgeRepositoryDb(
+  prisma: PrismaCompatibleClient,
+): KnowledgeRepositoryDb {
+  return {
+    businessContextItem: prisma.businessContextItem,
+  };
+}
+
 // ---------------------------------------------------------------------------
 // Factory
 // ---------------------------------------------------------------------------
@@ -175,6 +189,10 @@ export function createApiDependencies(
     toAiConfigRepositoryDb(prisma),
   );
 
+  const knowledgeRepository = createKnowledgeRepository(
+    toKnowledgeRepositoryDb(prisma),
+  );
+
   // Wire services
   const identityService = createIdentityService({
     repository: identityRepository,
@@ -196,6 +214,9 @@ export function createApiDependencies(
   const aiConfigService = createAiConfigService({
     repository: aiConfigRepository,
   });
+  const knowledgeService = createKnowledgeService({
+    repository: knowledgeRepository,
+  });
 
   return {
     repositories: {
@@ -206,6 +227,7 @@ export function createApiDependencies(
       conversations: conversationRepository,
       replyDrafts: replyDraftRepository,
       aiConfig: aiConfigRepository,
+      knowledge: knowledgeRepository,
     },
     services: {
       identity: identityService,
@@ -215,6 +237,7 @@ export function createApiDependencies(
       crm: crmService,
       conversations: conversationService,
       aiConfig: aiConfigService,
+      knowledge: knowledgeService,
     },
   };
 }

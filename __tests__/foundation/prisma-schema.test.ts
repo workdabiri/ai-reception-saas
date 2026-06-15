@@ -958,3 +958,241 @@ describe('Prisma Schema — Reply Drafts Migration', () => {
     expect(migrationSql).toContain('"id" UUID NOT NULL');
   });
 });
+
+// ---------------------------------------------------------------------------
+// Knowledge Domain — verified business-context store (B-R2)
+// ---------------------------------------------------------------------------
+
+describe('Prisma Schema — Knowledge Domain (B-R2)', () => {
+  // Enums
+  it('defines BusinessContextItemStatus enum with DRAFT, VERIFIED, ARCHIVED', () => {
+    expect(enumExists('BusinessContextItemStatus')).toBe(true);
+    expect(enumHasValue('BusinessContextItemStatus', 'DRAFT')).toBe(true);
+    expect(enumHasValue('BusinessContextItemStatus', 'VERIFIED')).toBe(true);
+    expect(enumHasValue('BusinessContextItemStatus', 'ARCHIVED')).toBe(true);
+  });
+
+  it('defines BusinessContextItemSourceType enum with all provenance values', () => {
+    expect(enumExists('BusinessContextItemSourceType')).toBe(true);
+    expect(enumHasValue('BusinessContextItemSourceType', 'OWNER_APPROVED')).toBe(true);
+    expect(enumHasValue('BusinessContextItemSourceType', 'OPERATOR_APPROVED')).toBe(true);
+    expect(enumHasValue('BusinessContextItemSourceType', 'SYSTEM_SEEDED')).toBe(true);
+    expect(enumHasValue('BusinessContextItemSourceType', 'IMPORT')).toBe(true);
+    expect(enumHasValue('BusinessContextItemSourceType', 'OTHER')).toBe(true);
+  });
+
+  // Model existence
+  it('defines BusinessContextItem model', () => {
+    expect(modelExists('BusinessContextItem')).toBe(true);
+  });
+
+  // Required fields
+  it('BusinessContextItem has required fields', () => {
+    const model = schema.match(/model\s+BusinessContextItem\s*\{([\s\S]+?)\}/);
+    expect(model).not.toBeNull();
+    const body = model![1];
+    expect(body).toContain('business_id');
+    expect(body).toContain('category');
+    expect(body).toContain('key');
+    expect(body).toContain('value');
+    expect(body).toContain('status');
+    expect(body).toContain('source_type');
+    expect(body).toContain('source_label');
+    expect(body).toContain('source_url');
+    expect(body).toContain('source_metadata');
+    expect(body).toContain('verified_by_user_id');
+    expect(body).toContain('verified_at');
+    expect(body).toContain('created_by_user_id');
+    expect(body).toContain('created_at');
+    expect(body).toContain('updated_at');
+  });
+
+  // Table mapping
+  it('BusinessContextItem maps to business_context_items table', () => {
+    const model = schema.match(/model\s+BusinessContextItem\s*\{([\s\S]+?)\}/);
+    expect(model).not.toBeNull();
+    expect(model![1]).toContain('@@map("business_context_items")');
+  });
+
+  // businessId is required UUID
+  it('BusinessContextItem.businessId is a required UUID mapped to business_id', () => {
+    const model = schema.match(/model\s+BusinessContextItem\s*\{([\s\S]+?)\}/);
+    expect(model).not.toBeNull();
+    const line = model![1].match(/^\s+businessId\s+.*/m);
+    expect(line).not.toBeNull();
+    expect(line![0]).toContain('String');
+    expect(line![0]).not.toContain('String?');
+    expect(line![0]).toContain('@db.Uuid');
+    expect(line![0]).toContain('@map("business_id")');
+  });
+
+  // Business scoping indexes (incl. standalone businessId index)
+  it('BusinessContextItem has business scoping indexes', () => {
+    const model = schema.match(/model\s+BusinessContextItem\s*\{([\s\S]+?)\}/);
+    expect(model).not.toBeNull();
+    expect(model![1]).toContain('@@index([businessId])');
+    expect(model![1]).toContain('@@index([businessId, status])');
+    expect(model![1]).toContain('@@index([businessId, category])');
+  });
+
+  // Composite unique for tenant-safe FK targeting (Area A hardening pattern)
+  it('BusinessContextItem has @@unique([id, businessId]) composite', () => {
+    const model = schema.match(/model\s+BusinessContextItem\s*\{([\s\S]+?)\}/);
+    expect(model).not.toBeNull();
+    expect(model![1]).toContain('@@unique([id, businessId])');
+  });
+
+  // value supports long text
+  it('BusinessContextItem.value uses @db.Text (long text supported)', () => {
+    const model = schema.match(/model\s+BusinessContextItem\s*\{([\s\S]+?)\}/);
+    expect(model).not.toBeNull();
+    const valueLine = model![1].match(/^\s+value\s+.*/m);
+    expect(valueLine).not.toBeNull();
+    expect(valueLine![0]).toContain('@db.Text');
+  });
+
+  // UUID primary key
+  it('BusinessContextItem uses UUID primary key', () => {
+    const model = schema.match(/model\s+BusinessContextItem\s*\{([\s\S]+?)\}/);
+    expect(model).not.toBeNull();
+    expect(model![1]).toContain('@db.Uuid');
+    expect(model![1]).toContain('@default(uuid())');
+  });
+
+  // status defaults to DRAFT (unverified — fail-safe for AI eligibility)
+  it('BusinessContextItem.status defaults to DRAFT', () => {
+    const model = schema.match(/model\s+BusinessContextItem\s*\{([\s\S]+?)\}/);
+    expect(model).not.toBeNull();
+    const statusLine = model![1].match(/^\s+status\s+.*/m);
+    expect(statusLine).not.toBeNull();
+    expect(statusLine![0]).toContain('BusinessContextItemStatus');
+    expect(statusLine![0]).toContain('@default(DRAFT)');
+  });
+
+  // sourceType is explicit provenance — must NOT be synthesized by a DB default
+  it('BusinessContextItem.sourceType exists and has NO @default (explicit provenance)', () => {
+    const model = schema.match(/model\s+BusinessContextItem\s*\{([\s\S]+?)\}/);
+    expect(model).not.toBeNull();
+    const sourceTypeLine = model![1].match(/^\s+sourceType\s+.*/m);
+    expect(sourceTypeLine).not.toBeNull();
+    expect(sourceTypeLine![0]).toContain('BusinessContextItemSourceType');
+    expect(sourceTypeLine![0]).toContain('@map("source_type")');
+    // Provenance must be explicit, never defaulted to a provenance claim.
+    expect(sourceTypeLine![0]).not.toContain('@default');
+    expect(sourceTypeLine![0]).not.toContain('OWNER_APPROVED');
+  });
+
+  // Relation back to Business
+  it('Business has businessContextItems relation', () => {
+    const model = schema.match(/model\s+Business\s*\{([\s\S]+?)\}/);
+    expect(model).not.toBeNull();
+    expect(model![1]).toContain('businessContextItems');
+    expect(model![1]).toContain('BusinessContextItem[]');
+  });
+
+  // No customer/conversation/message content fields (data store only)
+  it('BusinessContextItem does NOT contain customer/conversation/message links', () => {
+    const model = schema.match(/model\s+BusinessContextItem\s*\{([\s\S]+?)\}/);
+    expect(model).not.toBeNull();
+    const body = model![1];
+    expect(body).not.toContain('customerId');
+    expect(body).not.toContain('conversationId');
+    expect(body).not.toContain('messageId');
+  });
+});
+
+describe('Prisma Schema — Knowledge Domain Migration (B-R2)', () => {
+  const migrationPath = path.resolve(
+    __dirname,
+    '../../prisma/migrations/20260615_add_business_context_items/migration.sql',
+  );
+
+  it('migration file exists', () => {
+    expect(fs.existsSync(migrationPath)).toBe(true);
+  });
+
+  it('migration creates BusinessContextItemStatus enum', () => {
+    const sql = fs.readFileSync(migrationPath, 'utf-8');
+    expect(sql).toContain('CREATE TYPE "BusinessContextItemStatus"');
+    expect(sql).toContain("'DRAFT'");
+    expect(sql).toContain("'VERIFIED'");
+    expect(sql).toContain("'ARCHIVED'");
+  });
+
+  it('migration creates BusinessContextItemSourceType enum', () => {
+    const sql = fs.readFileSync(migrationPath, 'utf-8');
+    expect(sql).toContain('CREATE TYPE "BusinessContextItemSourceType"');
+    expect(sql).toContain("'OWNER_APPROVED'");
+    expect(sql).toContain("'IMPORT'");
+  });
+
+  it('migration creates the business_context_items table', () => {
+    const sql = fs.readFileSync(migrationPath, 'utf-8');
+    expect(sql).toContain('CREATE TABLE "business_context_items"');
+  });
+
+  it('migration uses UUID id and TEXT value (long text)', () => {
+    const sql = fs.readFileSync(migrationPath, 'utf-8');
+    expect(sql).toContain('"id" UUID NOT NULL');
+    expect(sql).toContain('"value" TEXT NOT NULL');
+  });
+
+  it('migration adds status NOT NULL defaulting to DRAFT (unverified)', () => {
+    const sql = fs.readFileSync(migrationPath, 'utf-8');
+    expect(sql).toMatch(
+      /"status"\s+"BusinessContextItemStatus"\s+NOT NULL\s+DEFAULT 'DRAFT'/,
+    );
+  });
+
+  it('migration adds source_type NOT NULL with NO default (explicit provenance)', () => {
+    const sql = fs.readFileSync(migrationPath, 'utf-8');
+    // sourceType is required...
+    expect(sql).toMatch(
+      /"source_type"\s+"BusinessContextItemSourceType"\s+NOT NULL/,
+    );
+    // ...but must NOT be synthesized by a DB default (provenance is explicit).
+    expect(sql).not.toMatch(/"source_type"[^,\n]*DEFAULT/);
+    expect(sql).not.toContain("DEFAULT 'OWNER_APPROVED'");
+  });
+
+  it('migration creates the business_id FK to businesses', () => {
+    const sql = fs.readFileSync(migrationPath, 'utf-8');
+    expect(sql).toContain('business_context_items_business_id_fkey');
+    expect(sql).toMatch(
+      /FOREIGN KEY \("business_id"\)\s+REFERENCES "businesses"\("id"\)/,
+    );
+  });
+
+  it('migration creates business scoping indexes', () => {
+    const sql = fs.readFileSync(migrationPath, 'utf-8');
+    expect(sql).toContain('business_context_items_business_id_idx');
+    expect(sql).toContain('business_context_items_business_id_status_idx');
+    expect(sql).toContain('business_context_items_business_id_category_idx');
+  });
+
+  it('migration creates composite unique on (id, business_id)', () => {
+    const sql = fs.readFileSync(migrationPath, 'utf-8');
+    expect(sql).toContain('business_context_items_id_business_id_key');
+    expect(sql).toMatch(/UNIQUE\s*\("id",\s*"business_id"\)/);
+  });
+
+  it('migration enables RLS on business_context_items (tenant-table pattern)', () => {
+    const sql = fs.readFileSync(migrationPath, 'utf-8');
+    expect(sql).toContain(
+      'ALTER TABLE "business_context_items" ENABLE ROW LEVEL SECURITY',
+    );
+  });
+
+  it('migration is additive: it does not drop or alter existing tables/columns', () => {
+    const sql = fs.readFileSync(migrationPath, 'utf-8');
+    expect(sql).not.toMatch(/DROP\s+TABLE/i);
+    expect(sql).not.toMatch(/DROP\s+COLUMN/i);
+    // The only ALTER TABLE statements target the new table (constraint + RLS).
+    const alterTargets = [
+      ...sql.matchAll(/ALTER TABLE\s+"([^"]+)"/g),
+    ].map((m) => m[1]);
+    for (const target of alterTargets) {
+      expect(target).toBe('business_context_items');
+    }
+  });
+});
