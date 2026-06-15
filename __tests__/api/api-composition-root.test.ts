@@ -384,6 +384,7 @@ describe('createApiDependencies', () => {
         expect(deps.services.conversations).toBeDefined();
         expect(deps.services.aiConfig).toBeDefined();
         expect(deps.services.knowledge).toBeDefined();
+        expect(deps.services.aiRuntime).toBeDefined();
       },
     );
   });
@@ -503,6 +504,11 @@ describe('createApiDependencies', () => {
         );
         expect(typeof deps.services.knowledge.verifyItem).toBe('function');
         expect(typeof deps.services.knowledge.archiveItem).toBe('function');
+
+        // AI runtime / context assembler service methods (B-R3)
+        expect(typeof deps.services.aiRuntime.assembleAiContext).toBe(
+          'function',
+        );
       },
     );
   });

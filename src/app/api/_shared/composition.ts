@@ -50,6 +50,7 @@ import { createCrmService } from '@/domains/crm/implementation';
 import { createConversationService } from '@/domains/conversations/implementation';
 import { createAiConfigService } from '@/domains/ai-config/implementation';
 import { createKnowledgeService } from '@/domains/knowledge/implementation';
+import { createAiRuntimeService } from '@/domains/ai-runtime/context-assembler';
 
 import type {
   ApiDependencies,
@@ -217,6 +218,12 @@ export function createApiDependencies(
   const knowledgeService = createKnowledgeService({
     repository: knowledgeRepository,
   });
+  // AI runtime composes existing services (AI policy + verified knowledge); it
+  // has no repository/Prisma surface of its own (B-R3).
+  const aiRuntimeService = createAiRuntimeService({
+    aiConfig: aiConfigService,
+    knowledge: knowledgeService,
+  });
 
   return {
     repositories: {
@@ -238,6 +245,7 @@ export function createApiDependencies(
       conversations: conversationService,
       aiConfig: aiConfigService,
       knowledge: knowledgeService,
+      aiRuntime: aiRuntimeService,
     },
   };
 }
