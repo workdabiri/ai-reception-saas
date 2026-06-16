@@ -2,7 +2,8 @@
 // AI Runtime Domain — Public Exports
 //
 // Tenant-scoped AI context assembler (B-R3) + AI provider boundary and
-// deterministic fake provider (B-R4) + provenance-aware prompt builder (B-R5).
+// deterministic fake provider (B-R4) + provenance-aware prompt builder (B-R5) +
+// AI generation audit log + draft metadata (B-R6).
 //
 // The assembler composes AI Config (policy) and Knowledge (verified context)
 // into a structured, internal context object. The provider boundary defines the
@@ -21,3 +22,4 @@ export * from './context-assembler';
 export * from './provider';
 export * from './fake-provider';
 export * from './prompt-builder';
+export * from './audit-log';
