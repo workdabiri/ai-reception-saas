@@ -168,6 +168,18 @@ enum BusinessContextItemSourceType {
   OTHER
 }
 
+// AI Runtime — AI generation audit lifecycle status (PRD-v1.1 §5, B-R6).
+//
+// Records the lifecycle of a single AI generation ATTEMPT for traceability:
+//   STARTED   = an attempt was opened (before/independent of any provider call).
+//   SUCCEEDED = the attempt produced a result (metadata only — never content).
+//   FAILED    = the attempt failed; a bounded, sanitized error is recorded.
+enum AiGenerationStatus {
+  STARTED
+  SUCCEEDED
+  FAILED
+}
+
 // ===========================================================================
 // Models — Identity Domain
 // ===========================================================================
@@ -183,14 +195,14 @@ model User {
   createdAt     DateTime   @default(now()) @map("created_at")
   updatedAt     DateTime   @updatedAt @map("updated_at")
 
-  sessions               Session[]
-  memberships            BusinessMembership[]
-  createdBusinesses      Business[]           @relation("BusinessCreator")
-  invitedMemberships     BusinessMembership[] @relation("MembershipInviter")
-  auditEvents            AuditEvent[]         @relation("AuditActor")
-  accounts               Account[]
-  assignedConversations  Conversation[]       @relation("ConversationAssignee")
-  sentMessages           Message[]            @relation("MessageSender")
+  sessions              Session[]
+  memberships           BusinessMembership[]
+  createdBusinesses     Business[]           @relation("BusinessCreator")
+  invitedMemberships    BusinessMembership[] @relation("MembershipInviter")
+  auditEvents           AuditEvent[]         @relation("AuditActor")
+  accounts              Account[]
+  assignedConversations Conversation[]       @relation("ConversationAssignee")
+  sentMessages          Message[]            @relation("MessageSender")
 
   @@map("users")
 }
@@ -239,6 +251,7 @@ model Business {
   conversationMessages   Message[]
   replyDrafts            ReplyDraft[]
   businessContextItems   BusinessContextItem[]
+  aiGenerationAuditLogs  AiGenerationAuditLog[]
 
   @@index([status])
   @@index([createdByUserId])
@@ -350,7 +363,7 @@ model Customer {
   business       Business                @relation(fields: [businessId], references: [id])
   contactMethods CustomerContactMethod[]
   conversations  Conversation[]
-  sentMessages   Message[]      @relation("MessageSenderCustomer")
+  sentMessages   Message[]               @relation("MessageSenderCustomer")
 
   @@index([businessId, status])
   @@index([businessId, createdAt])
@@ -399,18 +412,18 @@ model Conversation {
   createdAt              DateTime               @default(now()) @map("created_at")
   updatedAt              DateTime               @updatedAt @map("updated_at")
 
-  business     Business  @relation(fields: [businessId], references: [id])
-  customer     Customer? @relation(fields: [customerId], references: [id])
-  assignedUser User?     @relation("ConversationAssignee", fields: [assignedUserId], references: [id])
+  business     Business     @relation(fields: [businessId], references: [id])
+  customer     Customer?    @relation(fields: [customerId], references: [id])
+  assignedUser User?        @relation("ConversationAssignee", fields: [assignedUserId], references: [id])
   messages     Message[]
   replyDrafts  ReplyDraft[]
 
+  @@unique([id, businessId])
   @@index([businessId, status])
   @@index([businessId, createdAt])
   @@index([businessId, assignedUserId])
   @@index([customerId])
   @@index([businessId, channel])
-  @@unique([id, businessId])
   @@map("conversations")
 }
 
@@ -445,25 +458,32 @@ model Message {
 // ===========================================================================
 
 model ReplyDraft {
-  id               String           @id @default(uuid()) @db.Uuid
-  businessId       String           @map("business_id") @db.Uuid
-  conversationId   String           @map("conversation_id") @db.Uuid
-  sourceMessageId  String?          @map("source_message_id") @db.Uuid
-  createdByUserId  String?          @map("created_by_user_id") @db.Uuid
-  source           ReplyDraftSource @default(SYSTEM)
-  status           ReplyDraftStatus @default(PENDING_REVIEW)
-  draftText        String           @map("draft_text") @db.Text
-  originalText     String?          @map("original_text") @db.Text
-  reviewedByUserId String?          @map("reviewed_by_user_id") @db.Uuid
-  reviewedAt       DateTime?        @map("reviewed_at")
-  sentMessageId    String?          @map("sent_message_id") @db.Uuid
-  sentAt           DateTime?        @map("sent_at")
-  sentByUserId     String?          @map("sent_by_user_id") @db.Uuid
-  modelProvider    String?          @map("model_provider")
-  modelName        String?          @map("model_name")
-  promptVersion    String?          @map("prompt_version")
-  createdAt        DateTime         @default(now()) @map("created_at")
-  updatedAt        DateTime         @updatedAt @map("updated_at")
+  id                     String           @id @default(uuid()) @db.Uuid
+  businessId             String           @map("business_id") @db.Uuid
+  conversationId         String           @map("conversation_id") @db.Uuid
+  sourceMessageId        String?          @map("source_message_id") @db.Uuid
+  createdByUserId        String?          @map("created_by_user_id") @db.Uuid
+  source                 ReplyDraftSource @default(SYSTEM)
+  status                 ReplyDraftStatus @default(PENDING_REVIEW)
+  draftText              String           @map("draft_text") @db.Text
+  originalText           String?          @map("original_text") @db.Text
+  reviewedByUserId       String?          @map("reviewed_by_user_id") @db.Uuid
+  reviewedAt             DateTime?        @map("reviewed_at")
+  sentMessageId          String?          @map("sent_message_id") @db.Uuid
+  sentAt                 DateTime?        @map("sent_at")
+  sentByUserId           String?          @map("sent_by_user_id") @db.Uuid
+  modelProvider          String?          @map("model_provider")
+  modelName              String?          @map("model_name")
+  promptVersion          String?          @map("prompt_version")
+  // AI generation metadata (B-R6). Populated only when source = AI. These are
+  // METADATA ONLY — no raw prompt, no provider response content. They link a
+  // draft to its generation audit record and capture the provenance fingerprint.
+  aiGenerationAuditLogId String?          @map("ai_generation_audit_log_id") @db.Uuid
+  aiContextHash          String?          @map("ai_context_hash")
+  aiFinishReason         String?          @map("ai_finish_reason")
+  aiGeneratedAt          DateTime?        @map("ai_generated_at")
+  createdAt              DateTime         @default(now()) @map("created_at")
+  updatedAt              DateTime         @updatedAt @map("updated_at")
 
   business     Business     @relation(fields: [businessId], references: [id])
   conversation Conversation @relation(fields: [conversationId], references: [id])
@@ -514,4 +534,68 @@ model BusinessContextItem {
   @@index([businessId, status])
   @@index([businessId, category])
   @@map("business_context_items")
+}
+
+// ===========================================================================
+// Models — AI Runtime (B-R6)
+// ===========================================================================
+
+// Tenant-scoped AI generation audit log (PRD-v1.1 §5, B-R6). Records ONE row per
+// AI generation ATTEMPT so every generation is traceable: which business, which
+// prompt version, which context fingerprint, which verified context item ids
+// backed the prompt, which provider/model produced the result, the provider's
+// request id / finish reason / token usage, the linked draft (if any), and
+// whether the attempt started / succeeded / failed and when.
+//
+// PRIVACY INVARIANT (B-R6): this table stores METADATA ONLY. It deliberately has
+// NO column for the raw prompt, the raw customer message, the conversation
+// transcript, customer email/phone, the provider's raw response content, or raw
+// source metadata. Only counts (promptCharCount / resultCharCount, token usage),
+// stable identifiers, the deterministic non-content contextHash, item ids, and a
+// bounded/sanitized error code+message may be stored. It performs no provider
+// call, no send, and reads no customer / conversation / message content.
+model AiGenerationAuditLog {
+  id                     String             @id @default(uuid()) @db.Uuid
+  businessId             String             @map("business_id") @db.Uuid
+  // The conversation this generation was performed for, if known. A nullable,
+  // FK-free trace id only — this table reads NO conversation row or message
+  // content; it persists the id as audit metadata.
+  conversationId         String?            @map("conversation_id") @db.Uuid
+  // The draft this generation produced/updated, if any. A nullable, FK-free
+  // reference (set at completion): a STARTED attempt or a FAILED attempt may
+  // have no draft, so this stays loosely coupled and is never required.
+  replyDraftId           String?            @map("reply_draft_id") @db.Uuid
+  operation              String
+  status                 AiGenerationStatus @default(STARTED)
+  promptVersion          String?            @map("prompt_version")
+  contextHash            String?            @map("context_hash")
+  includedContextItemIds Json?              @map("included_context_item_ids")
+  omittedContextItemIds  Json?              @map("omitted_context_item_ids")
+  warnings               Json?
+  providerId             String?            @map("provider_id")
+  modelId                String?            @map("model_id")
+  providerRequestId      String?            @map("provider_request_id")
+  finishReason           String?            @map("finish_reason")
+  promptTokens           Int?               @map("prompt_tokens")
+  completionTokens       Int?               @map("completion_tokens")
+  totalTokens            Int?               @map("total_tokens")
+  promptCharCount        Int?               @map("prompt_char_count")
+  resultCharCount        Int?               @map("result_char_count")
+  errorCode              String?            @map("error_code")
+  errorMessage           String?            @map("error_message")
+  startedAt              DateTime           @default(now()) @map("started_at")
+  completedAt            DateTime?          @map("completed_at")
+  createdAt              DateTime           @default(now()) @map("created_at")
+  updatedAt              DateTime           @updatedAt @map("updated_at")
+
+  business Business @relation(fields: [businessId], references: [id])
+
+  // Composite unique enables tenant-safe single-row writes (id + businessId),
+  // consistent with the Area-A hardening pattern used elsewhere.
+  @@unique([id, businessId])
+  @@index([businessId, createdAt])
+  @@index([businessId, status])
+  @@index([businessId, conversationId])
+  @@index([replyDraftId])
+  @@map("ai_generation_audit_logs")
 }

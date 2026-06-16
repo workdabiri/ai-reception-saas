@@ -333,3 +333,196 @@ export interface BuildReplyDraftPromptResult {
   readonly omittedContextItemIds: readonly string[];
   readonly warnings: readonly string[];
 }
+
+// ===========================================================================
+// AI Generation Audit Log — Types (B-R6)
+//
+// Data shapes for the persistence boundary that makes AI generation auditable
+// and lets a reply draft carry AI-generation metadata. B-R6 introduces ONLY the
+// audit/metadata seam — it builds no prompt, assembles no context, calls no
+// provider, sends nothing, and reads no customer/conversation/message content.
+//
+// PRIVACY INVARIANT: the audit log stores METADATA ONLY. It NEVER stores the raw
+// prompt, the raw customer message, the conversation transcript, customer
+// contact details, the provider's raw response content, or raw source metadata.
+// Only counts, stable identifiers, the non-content contextHash, verified item
+// ids, and a bounded + redacted error code+message are recorded.
+// ===========================================================================
+
+// ---------------------------------------------------------------------------
+// Status
+// ---------------------------------------------------------------------------
+
+/**
+ * Lifecycle status of a single AI generation attempt.
+ *
+ * - STARTED   = an attempt was opened (independent of any provider call).
+ * - SUCCEEDED = the attempt produced a result (metadata only — never content).
+ * - FAILED    = the attempt failed; a bounded + redacted error is recorded.
+ */
+export const AI_GENERATION_AUDIT_STATUS_VALUES = [
+  'STARTED',
+  'SUCCEEDED',
+  'FAILED',
+] as const;
+
+/** AI generation audit lifecycle status */
+export type AiGenerationAuditStatus =
+  (typeof AI_GENERATION_AUDIT_STATUS_VALUES)[number];
+
+/** Type guard for a valid AI generation audit status */
+export function isAiGenerationAuditStatus(
+  value: unknown,
+): value is AiGenerationAuditStatus {
+  return (
+    typeof value === 'string' &&
+    (AI_GENERATION_AUDIT_STATUS_VALUES as readonly string[]).includes(value)
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Error codes
+// ---------------------------------------------------------------------------
+
+/**
+ * AI generation audit error codes. The service/repository FAIL CLOSED on invalid
+ * input or a missing record, returning one of these (never throwing).
+ */
+export const AI_GENERATION_AUDIT_ERROR_CODES = [
+  'AI_AUDIT_INVALID_INPUT',
+  'AI_AUDIT_NOT_FOUND',
+  'AI_AUDIT_INVALID_TRANSITION',
+  'AI_AUDIT_REPOSITORY_ERROR',
+] as const;
+
+/** AI generation audit error code */
+export type AiGenerationAuditErrorCode =
+  (typeof AI_GENERATION_AUDIT_ERROR_CODES)[number];
+
+// ---------------------------------------------------------------------------
+// Domain entity
+// ---------------------------------------------------------------------------
+
+/**
+ * Domain representation of an AI generation audit record.
+ *
+ * Dates are serialized as ISO strings at the repository boundary. By
+ * construction there is NO field for raw prompt / response / customer content:
+ * only metadata, counts, identifiers, and the non-content contextHash.
+ */
+export interface AiGenerationAuditLog {
+  readonly id: string;
+  readonly businessId: string;
+  readonly conversationId: string | null;
+  readonly replyDraftId: string | null;
+  readonly operation: AiProviderOperation;
+  readonly status: AiGenerationAuditStatus;
+  readonly promptVersion: string | null;
+  readonly contextHash: string | null;
+  readonly includedContextItemIds: readonly string[] | null;
+  readonly omittedContextItemIds: readonly string[] | null;
+  readonly warnings: readonly string[] | null;
+  readonly providerId: string | null;
+  readonly modelId: string | null;
+  readonly providerRequestId: string | null;
+  readonly finishReason: AiProviderFinishReason | null;
+  readonly promptTokens: number | null;
+  readonly completionTokens: number | null;
+  readonly totalTokens: number | null;
+  readonly promptCharCount: number | null;
+  readonly resultCharCount: number | null;
+  readonly errorCode: string | null;
+  readonly errorMessage: string | null;
+  readonly startedAt: string;
+  readonly completedAt: string | null;
+  readonly createdAt: string;
+  readonly updatedAt: string;
+}
+
+// ---------------------------------------------------------------------------
+// Inputs
+// ---------------------------------------------------------------------------
+
+/**
+ * Input to OPEN an audit record for a generation attempt (status STARTED).
+ *
+ * SECURITY: `businessId` MUST be the server-resolved tenant id. All fields are
+ * metadata derived from the B-R5 prompt-build result — never raw content. There
+ * is intentionally no field for prompt text (only `promptCharCount`).
+ */
+export interface StartAiGenerationAuditInput {
+  readonly businessId: string;
+  readonly operation: AiProviderOperation;
+  readonly conversationId?: string | null;
+  readonly replyDraftId?: string | null;
+  readonly promptVersion?: string | null;
+  readonly contextHash?: string | null;
+  readonly includedContextItemIds?: readonly string[];
+  readonly omittedContextItemIds?: readonly string[];
+  readonly warnings?: readonly string[];
+  readonly providerId?: string | null;
+  readonly modelId?: string | null;
+  readonly promptCharCount?: number | null;
+}
+
+/**
+ * Input to COMPLETE an audit record as SUCCEEDED.
+ *
+ * Carries provider/result METADATA only (ids, finish reason, token usage, a
+ * result character count, and the linked draft). There is intentionally no field
+ * for the generated text (only `resultCharCount`).
+ */
+export interface CompleteAiGenerationAuditSuccessInput {
+  readonly auditLogId: string;
+  readonly businessId: string;
+  readonly replyDraftId?: string | null;
+  readonly providerId?: string | null;
+  readonly modelId?: string | null;
+  readonly providerRequestId?: string | null;
+  readonly finishReason?: AiProviderFinishReason | null;
+  readonly promptTokens?: number | null;
+  readonly completionTokens?: number | null;
+  readonly totalTokens?: number | null;
+  readonly resultCharCount?: number | null;
+}
+
+/**
+ * Input to COMPLETE an audit record as FAILED.
+ *
+ * `errorCode` is required; `errorMessage` is optional and is bounded + redacted
+ * before persistence (email/phone-like substrings redacted, whitespace/control
+ * characters collapsed, then truncated) so an over-long or content-bearing
+ * message can never bloat or leak through the audit record.
+ */
+export interface CompleteAiGenerationAuditFailureInput {
+  readonly auditLogId: string;
+  readonly businessId: string;
+  readonly errorCode: string;
+  readonly errorMessage?: string | null;
+  readonly providerId?: string | null;
+  readonly modelId?: string | null;
+  readonly replyDraftId?: string | null;
+}
+
+// ---------------------------------------------------------------------------
+// Draft AI metadata
+// ---------------------------------------------------------------------------
+
+/**
+ * The METADATA-ONLY patch attached to a reply draft when it is AI-generated.
+ *
+ * It marks the draft `source = AI` and records provider/model/prompt-version,
+ * the non-content contextHash, the finish reason, when it was generated, and a
+ * link to the audit record. It carries NO draft text and NO prompt — attaching
+ * it never changes the human-review status and never sends.
+ */
+export interface DraftAiMetadata {
+  readonly source: 'AI';
+  readonly modelProvider: string;
+  readonly modelName: string;
+  readonly promptVersion: string;
+  readonly aiContextHash: string;
+  readonly aiFinishReason: AiProviderFinishReason;
+  readonly aiGeneratedAt: string;
+  readonly aiGenerationAuditLogId: string | null;
+}
