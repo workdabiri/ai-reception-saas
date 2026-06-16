@@ -484,6 +484,8 @@ describe('AI Runtime — scope guards (no provider / prompt / PII / send)', () =
     // B-R4: provider boundary + deterministic fake provider re-exported by index.
     './provider',
     './fake-provider',
+    // B-R5: provenance-aware prompt builder re-exported by index.
+    './prompt-builder',
   ]);
 
   it.each(domainFiles)('%s imports no LLM/provider SDK', (rel) => {

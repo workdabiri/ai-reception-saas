@@ -246,3 +246,90 @@ export interface AiProviderGenerateTextResult {
   readonly createdAt: string;
   readonly requestId?: string;
 }
+
+// ===========================================================================
+// Provenance-Aware Prompt Builder — Types (B-R5)
+//
+// Data shapes for converting an already-assembled, tenant-scoped AI context
+// (B-R3) into a provider-ready request (B-R4 shape) for FUTURE reply-draft
+// generation. The builder is PURE and PROVENANCE-AWARE:
+//
+//  - it consumes ONLY an `AssembledAiContext` (never a raw client businessId,
+//    never customer/conversation/message PII);
+//  - it injects ONLY verified business context as the basis for definitive
+//    claims and instructs the model to hedge / defer / ask-for-confirmation /
+//    refuse when verified context is missing (PRD-v1.1 §5.1);
+//  - it preserves the human-review boundary, never auto-sends, and never calls
+//    a provider — it only builds the request payload.
+// ===========================================================================
+
+// ---------------------------------------------------------------------------
+// Error codes
+// ---------------------------------------------------------------------------
+
+/**
+ * Prompt-builder error codes. The builder FAILS CLOSED on any invalid input:
+ * it returns one of these and never produces a provider request.
+ *
+ * - AI_PROMPT_INVALID_CONTEXT     = missing/inconsistent assembled context
+ *   (no/invalid businessId, AI not enabled, malformed items).
+ * - AI_PROMPT_INVALID_INSTRUCTION = optional operator instruction present but
+ *   not a non-empty, bounded string.
+ * - AI_PROMPT_CONTEXT_TOO_LARGE   = the built prompt exceeds the size budget.
+ */
+export const AI_PROMPT_BUILDER_ERROR_CODES = [
+  'AI_PROMPT_INVALID_CONTEXT',
+  'AI_PROMPT_INVALID_INSTRUCTION',
+  'AI_PROMPT_CONTEXT_TOO_LARGE',
+] as const;
+
+/** Prompt-builder error code */
+export type AiPromptBuilderErrorCode =
+  (typeof AI_PROMPT_BUILDER_ERROR_CODES)[number];
+
+// ---------------------------------------------------------------------------
+// Input
+// ---------------------------------------------------------------------------
+
+/**
+ * Input for building a reply-draft prompt.
+ *
+ * SCOPE: `context` MUST be the structured object produced by the B-R3
+ * assembler. The builder takes tenancy and verified content ONLY from here —
+ * never a raw client businessId, and never customer/conversation/message data.
+ *
+ * `instruction` is an OPTIONAL, operator-supplied steering note (e.g. "keep it
+ * short and apologetic"). It is operator guidance, NOT verified context and NOT
+ * customer PII; it can never promote an unverified fact to a definitive claim.
+ */
+export interface BuildReplyDraftPromptInput {
+  readonly context: AssembledAiContext;
+  readonly instruction?: string;
+}
+
+// ---------------------------------------------------------------------------
+// Result
+// ---------------------------------------------------------------------------
+
+/**
+ * The result of building a reply-draft prompt.
+ *
+ *  - `promptVersion` identifies the prompt-template version (recorded later by
+ *    B-R6 on the generated draft).
+ *  - `providerRequest` is the B-R4 request payload (operation REPLY_DRAFT) ready
+ *    to hand to a provider — the builder NEVER sends it.
+ *  - `contextHash` is a deterministic, dependency-free fingerprint of the
+ *    verified context that backed the prompt (carries no raw content).
+ *  - `includedContextItemIds` / `omittedContextItemIds` track which verified
+ *    items backed the prompt (internal audit only — these ids are NOT exposed
+ *    in the prompt text).
+ *  - `warnings` carries non-fatal advisories (e.g. zero verified context).
+ */
+export interface BuildReplyDraftPromptResult {
+  readonly promptVersion: string;
+  readonly providerRequest: AiProviderGenerateTextRequest;
+  readonly contextHash: string;
+  readonly includedContextItemIds: readonly string[];
+  readonly omittedContextItemIds: readonly string[];
+  readonly warnings: readonly string[];
+}
