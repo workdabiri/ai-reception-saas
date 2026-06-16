@@ -116,3 +116,133 @@ export interface AssembledAiContext {
   readonly businessContextItems: readonly AssembledBusinessContextItem[];
   readonly assembledAt: string;
 }
+
+// ===========================================================================
+// AI Provider Boundary — Types (B-R4)
+//
+// Data shapes for the AI provider seam: the request/result payloads exchanged
+// with an AI provider, defined WITHOUT binding to any vendor and WITHOUT
+// building a prompt. B-R4 introduces only the boundary plus a deterministic
+// fake provider; prompt construction belongs to B-R5 and is out of scope here.
+//
+// IMPORTANT: the `prompt` on the request is CALLER-SUPPLIED for future use.
+// B-R4 never constructs it from business context, conversation content, or
+// customer data — it only defines the shape of the payload.
+// ===========================================================================
+
+// ---------------------------------------------------------------------------
+// Provider operations
+// ---------------------------------------------------------------------------
+
+/**
+ * Supported AI provider operations.
+ *
+ * - REPLY_DRAFT = generate a draft reply for human review (never auto-send).
+ *
+ * Deliberately minimal: only the single operation the Area B draft path needs
+ * is defined. Other operations stay out of scope until justified.
+ */
+export const AI_PROVIDER_OPERATION_VALUES = ['REPLY_DRAFT'] as const;
+
+/** A supported AI provider operation */
+export type AiProviderOperation = (typeof AI_PROVIDER_OPERATION_VALUES)[number];
+
+/** Type guard for a supported provider operation */
+export function isAiProviderOperation(
+  value: unknown,
+): value is AiProviderOperation {
+  return (
+    typeof value === 'string' &&
+    (AI_PROVIDER_OPERATION_VALUES as readonly string[]).includes(value)
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Finish reasons
+// ---------------------------------------------------------------------------
+
+/**
+ * Why a generation stopped. Kept small and vendor-neutral; a real provider
+ * adapter maps its own reasons onto these.
+ */
+export const AI_PROVIDER_FINISH_REASON_VALUES = [
+  'STOP',
+  'LENGTH',
+  'CONTENT_FILTER',
+] as const;
+
+/** Vendor-neutral finish reason */
+export type AiProviderFinishReason =
+  (typeof AI_PROVIDER_FINISH_REASON_VALUES)[number];
+
+// ---------------------------------------------------------------------------
+// Error codes
+// ---------------------------------------------------------------------------
+
+/**
+ * Provider request-validation error codes. A provider FAILS CLOSED on any
+ * invalid request: it returns one of these and never performs generation.
+ */
+export const AI_PROVIDER_ERROR_CODES = [
+  'AI_PROVIDER_INVALID_REQUEST',
+  'AI_PROVIDER_UNSUPPORTED_OPERATION',
+  'AI_PROVIDER_INVALID_BUSINESS_ID',
+  'AI_PROVIDER_INVALID_PROMPT',
+  'AI_PROVIDER_PROMPT_TOO_LARGE',
+] as const;
+
+/** AI provider error code */
+export type AiProviderErrorCode = (typeof AI_PROVIDER_ERROR_CODES)[number];
+
+// ---------------------------------------------------------------------------
+// Request
+// ---------------------------------------------------------------------------
+
+/**
+ * A request to generate text from an AI provider.
+ *
+ * SECURITY / SCOPE:
+ *  - `businessId` is the SERVER-RESOLVED tenant id; a provider treats it as
+ *    opaque tenancy metadata and performs no tenant data access of its own.
+ *  - `prompt` is CALLER-SUPPLIED. B-R4 does NOT build it from business context,
+ *    conversation content, or customer data — that is B-R5's responsibility.
+ *  - `contextHash` is an optional opaque fingerprint of assembled context (for
+ *    traceability / caching); it carries no content.
+ *  - `metadata` is optional, small, string-keyed and string-valued, and opaque
+ *    to the provider boundary.
+ */
+export interface AiProviderGenerateTextRequest {
+  readonly operation: AiProviderOperation;
+  readonly businessId: string;
+  readonly prompt: string;
+  readonly contextHash?: string;
+  readonly metadata?: Readonly<Record<string, string>>;
+}
+
+// ---------------------------------------------------------------------------
+// Result
+// ---------------------------------------------------------------------------
+
+/** Token usage for a generation. Counts only — never content. */
+export interface AiProviderUsage {
+  readonly promptTokens: number;
+  readonly completionTokens: number;
+  readonly totalTokens: number;
+}
+
+/**
+ * The result of a successful generation.
+ *
+ * `providerId` / `modelId` identify the producing provider/model for audit
+ * metadata (consumed later by B-R6). `createdAt` is an ISO timestamp from the
+ * provider's clock. `requestId` is an optional provider-side correlation id.
+ */
+export interface AiProviderGenerateTextResult {
+  readonly text: string;
+  readonly providerId: string;
+  readonly modelId: string;
+  readonly finishReason: AiProviderFinishReason;
+  readonly usage: AiProviderUsage;
+  readonly createdAt: string;
+  readonly requestId?: string;
+}

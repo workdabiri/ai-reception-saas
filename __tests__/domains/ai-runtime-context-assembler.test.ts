@@ -481,6 +481,9 @@ describe('AI Runtime — scope guards (no provider / prompt / PII / send)', () =
     './types',
     './service',
     './context-assembler',
+    // B-R4: provider boundary + deterministic fake provider re-exported by index.
+    './provider',
+    './fake-provider',
   ]);
 
   it.each(domainFiles)('%s imports no LLM/provider SDK', (rel) => {
