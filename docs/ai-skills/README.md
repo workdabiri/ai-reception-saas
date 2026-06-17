@@ -32,6 +32,7 @@ Playbooks are grouped by purpose. Read `CLAUDE.md` and the relevant `docs/audits
 | [test-first-hardening-workflow.md](test-first-hardening-workflow.md) | Adding a regression/lock test before (or instead of) a behavior change. |
 | [ai-runtime-no-auto-send-guard.md](ai-runtime-no-auto-send-guard.md) | Any change touching `src/domains/ai-runtime/` or reply-draft generation. |
 | [real-provider-readiness-gate.md](real-provider-readiness-gate.md) | Anyone considering wiring a real model provider or route-level generation. |
+| [external-tooling-and-mcp-policy.md](external-tooling-and-mcp-policy.md) | Evaluating any external Claude plugin, MCP server, connector, or automation tool for this repo. |
 
 ### Session continuity
 

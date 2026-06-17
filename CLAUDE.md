@@ -158,7 +158,7 @@ Format: `<type>(<domain>): <lowercase imperative subject>` (see `docs/COMMIT_CON
 
 ## Reference docs
 
-- `docs/ai-skills/` — **repo-local operational playbooks** (session bootstrap, task-risk classifier, code-quality rules, git/PR workflow, security review, remediation, test-first hardening, PR-body writing, post-merge cleanup, AI no-auto-send guard, real-provider readiness gate, session-handoff summary, terminal output capture, repo-docs sync). Start here for "how do I safely do X."
+- `docs/ai-skills/` — **repo-local operational playbooks** (session bootstrap, task-risk classifier, code-quality rules, git/PR workflow, security review, remediation, test-first hardening, PR-body writing, post-merge cleanup, AI no-auto-send guard, real-provider readiness gate, external tooling/MCP policy, session-handoff summary, terminal output capture, repo-docs sync). Start here for "how do I safely do X."
 - `docs/DOMAIN_MAP.md` — domain dependency rules and Level A/B boundary (enumerates 18; see the note in **What this is** about the 19th module).
 - `docs/audits/` — Area A / Area B audits, remediation plans, and **closure checkpoints** (authoritative status).
 - `docs/architecture/` — auth/tenant/schema design notes; `access-control-matrix.md` for RBAC.
