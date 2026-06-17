@@ -11,6 +11,8 @@ This is a **status checkpoint only**. It records the closure of the Area B block
 
 It makes a deliberately narrow claim. **The foundational AI-runtime / provenance / isolation boundary is now built and proven for the implemented scope — but real AI is not live.** No real model provider is integrated; no route-level generation path is wired; AI is default-off; no auto-send exists; Area C is out of scope. Real-provider production AI-assisted operation remains **NOT YET APPROVED** and must pass the separate gates in §6 before any real customer data enters an AI prompt.
 
+> **Update — real-DB AI-isolation CI gate added (test/CI-only, 2026-06-17).** A gated real-Postgres AI-runtime isolation suite (`__tests__/integration/ai-runtime-tenant-isolation.integration.test.ts`) plus one step in the existing `tenant-isolation-integration` CI job now exercise the B-R7 invariants against a **real** database — parity with the Area A A-R1.1 gate. The suite is `RUN_INTEGRATION_TESTS`-gated (skipped by the normal `pnpm test` run) and runs against the job's ephemeral Postgres; it proves the assembler returns only the current tenant's VERIFIED context, excludes DRAFT/ARCHIVED, never cross-leaks ids/keys/values/labels/provenance between businesses, fails closed for MANUAL / absent businesses, and keeps the `ai_generation_audit_logs` boundary business-scoped and metadata-only. This is a **test/CI-only** change — no production code, schema, migration, dependency, or provider integration was added — and it **does not change the go-live verdict**: real-provider AI remains not integrated, route-level generation remains unwired, no auto-send path exists, and **real-provider production AI-assisted go-live remains NOT YET APPROVED** pending the remaining §6 gates (including making this new check branch-protection-required).
+
 ---
 
 ## 1. Executive Verdict
@@ -63,7 +65,7 @@ The following are **explicitly out of scope** for this checkpoint and remain ope
 - **Production observability / alerting for AI usage.** No dashboards, metrics, or alerting on AI generation.
 - **Billing / usage limits for real provider tokens.** Token usage is recorded as fake-provider metadata only; no real cost guard exists.
 - **Legal / compliance review for real deployment.** Not performed.
-- **A CI-enforced real-DB AI-isolation integration gate.** B-R7 runs at the **domain (unit) tier** on every `pnpm test`; it is **not** wired into the dedicated `RUN_INTEGRATION_TESTS` live-Postgres CI job (which still runs only the Area A A-R1 suite). A live-DB AI-isolation gate mirroring A-R1.1 is not present.
+- **Branch-protection enforcement of the real-DB AI-isolation CI gate.** B-R7 runs at the **domain (unit) tier** on every `pnpm test`, and (since 2026-06-17) a gated real-DB AI-isolation suite (`__tests__/integration/ai-runtime-tenant-isolation.integration.test.ts`) and a step in the `tenant-isolation-integration` CI job now exist as **test/CI-only hardening**, mirroring the Area A A-R1.1 gate. The **remaining open operational step** is making that integration job/check **branch-protection-required** — i.e. required-check configuration in the repository's branch-protection policy — if the policy requires explicit required-check enrollment. The suite and CI step themselves are present, not absent.
 - **Authz-level guard on a future `ai_drafts.send` consumer.** B-R8 closes the no-auto-send / human-approval lock at the **domain (unit) tier** — it proves no AI-runtime or route path can send and that human approval is the only boundary today. A route-level/authz guard on a future real `ai_drafts.send` consumer (which does not exist yet) is a **future gate**, required before real-data Level 2 is enabled (see §6).
 
 ---
@@ -124,7 +126,7 @@ These are **hard future gates**. Each must pass its own review before real custo
 - **PII / data-minimization review.** An explicit field allowlist for anything entering a prompt (plan B-H1), proven by test to exclude unneeded PII.
 - **End-to-end QA with staging data.** A full staging exercise against realistic (non-production) data, default-off verified, before any real-data enablement.
 - **Rollback / kill-switch drill.** A rehearsed procedure proving the kill switch (revert to `MANUAL`) disables generation business-wide without a deploy and that generation fails closed afterward.
-- **CI-enforced real-DB AI-isolation gate (parity with A-R1.1).** A live-Postgres AI-isolation suite wired into the `RUN_INTEGRATION_TESTS` CI job and required by branch protection, complementing the domain-tier B-R7 proof.
+- **Branch-protection enforcement of the real-DB AI-isolation gate (parity with A-R1.1).** The live-Postgres AI-isolation suite and its `RUN_INTEGRATION_TESTS` CI step **are now added** (test/CI-only, 2026-06-17), complementing the domain-tier B-R7 proof. The **remaining gate** is branch-protection enforcement / required-check configuration so the job is a required status check.
 - **Authz guard on a future `ai_drafts.send` consumer.** The dedicated B-R8 no-auto-send / human-approval lock is **closed at the domain (unit) tier** (PR #106 · `7f4eee0`) — it proves no AI-runtime or route path can send and that human approval is the only boundary today. When a real `ai_drafts.send` consumer is ever introduced, an authz-level guard on it must be added and proven green **before Level 2 is enabled for any real user**.
 
 ---
@@ -198,7 +200,7 @@ Standing guidance for all subsequent work until the §6 gates are met:
 
 > **Area B B-R1 through B-R8 blocker/hardening suite is closed for the implemented foundational fake-provider / provenance / isolation / no-auto-send scope.** Real-provider production AI-assisted go-live remains **NOT YET APPROVED** pending the remaining §6 gates. The system is **not yet approved** for real-provider production AI-assisted operation until the future provider, route-wiring, PII, cost, observability, and human-approval gates (§6) are completed. AI remains default-off; no real model provider is integrated; no route-level generation is wired; no auto-send exists; Level 3 / autonomous AI is out of scope; and Area C (public widget ingest) is unchanged.
 
-This document is now the **current status reference** for Area B. The Area B audit (`AREA-B-ai-runtime-provenance-audit.md`, RED) and remediation plan (`AREA-B-remediation-plan.md`, PROPOSED → executed) are preserved unchanged as historical context; their workstream completion is annotated against this checkpoint. PRD-v1.1, the schema, the tests, and CI are unchanged by this checkpoint.
+This document is now the **current status reference** for Area B. The Area B audit (`AREA-B-ai-runtime-provenance-audit.md`, RED) and remediation plan (`AREA-B-remediation-plan.md`, PROPOSED → executed) are preserved unchanged as historical context; their workstream completion is annotated against this checkpoint. PRD-v1.1 and the schema remain unchanged by this checkpoint. Tests and CI now include the test/CI-only real-DB AI-isolation hardening gate; this still does not approve real-provider production AI-assisted operation.
 
 ---
 

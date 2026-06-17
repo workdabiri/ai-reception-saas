@@ -124,3 +124,16 @@ jobs:
         env:
           RUN_INTEGRATION_TESTS: 'true'
         run: pnpm exec vitest run __tests__/integration/tenant-identity-repositories.integration.test.ts
+
+      # Real-DB AI-runtime isolation gate (B-R7 parity). Runs the gated
+      # AI-context cross-tenant isolation suite against the SAME ephemeral
+      # Postgres service + committed migrations, with the integration gate
+      # enabled. Mirrors the Area A step above and runs immediately after it
+      # (the Area A step is unchanged): it proves the AI runtime assembles only
+      # the current tenant's VERIFIED context, excludes DRAFT/ARCHIVED, fails
+      # closed for MANUAL businesses, and keeps the AI-generation audit log
+      # business-scoped and metadata-only.
+      - name: Run AI-runtime tenant-isolation integration suite
+        env:
+          RUN_INTEGRATION_TESTS: 'true'
+        run: pnpm exec vitest run __tests__/integration/ai-runtime-tenant-isolation.integration.test.ts
