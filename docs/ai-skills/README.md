@@ -11,16 +11,46 @@ Operational playbooks for working safely in this repository. These are **repo-lo
 
 ## Index
 
+Playbooks are grouped by purpose. Read `CLAUDE.md` and the relevant `docs/audits/*-closure-checkpoint.md` first; when a playbook and a checkpoint disagree, the checkpoint wins.
+
+### Core workflow
+
 | Playbook | Use when |
 | --- | --- |
+| [code-quality-rules.md](code-quality-rules.md) | Writing or changing TypeScript/Prisma code — the repo's coding standards. |
 | [git-pr-workflow.md](git-pr-workflow.md) | Branching, committing, opening a PR (only when explicitly asked). |
+| [pr-body-writing-workflow.md](pr-body-writing-workflow.md) | Writing a PR description that satisfies the merge gate. |
+| [post-merge-cleanup-workflow.md](post-merge-cleanup-workflow.md) | Syncing `main`, verifying a squash landed, branch cleanup. |
+
+### Safety / security
+
+| Playbook | Use when |
+| --- | --- |
+| [task-risk-classifier.md](task-risk-classifier.md) | Before any task — classify low/medium/high/critical and set the mode. |
 | [security-review-workflow.md](security-review-workflow.md) | Reviewing a diff for auth / tenancy / RBAC / AI-safety issues. |
 | [area-remediation-workflow.md](area-remediation-workflow.md) | Closing a numbered blocker (A-Rx / B-Rx) against an audit + remediation plan. |
 | [test-first-hardening-workflow.md](test-first-hardening-workflow.md) | Adding a regression/lock test before (or instead of) a behavior change. |
-| [pr-body-writing-workflow.md](pr-body-writing-workflow.md) | Writing a PR description that satisfies the merge gate. |
-| [post-merge-cleanup-workflow.md](post-merge-cleanup-workflow.md) | Syncing `main`, verifying a squash landed, branch cleanup. |
 | [ai-runtime-no-auto-send-guard.md](ai-runtime-no-auto-send-guard.md) | Any change touching `src/domains/ai-runtime/` or reply-draft generation. |
 | [real-provider-readiness-gate.md](real-provider-readiness-gate.md) | Anyone considering wiring a real model provider or route-level generation. |
+
+### Session continuity
+
+| Playbook | Use when |
+| --- | --- |
+| [session-bootstrap-workflow.md](session-bootstrap-workflow.md) | Starting any new session — branch/status/log check + read status before editing. |
+| [session-handoff-summary-workflow.md](session-handoff-summary-workflow.md) | Compressing a long session into a safe handoff without dropping guardrails. |
+
+### Output capture
+
+| Playbook | Use when |
+| --- | --- |
+| [terminal-output-capture-workflow.md](terminal-output-capture-workflow.md) | The owner needs state/validation output captured to `/tmp` when copy-paste is hard. |
+
+### Documentation / status
+
+| Playbook | Use when |
+| --- | --- |
+| [repo-docs-sync-workflow.md](repo-docs-sync-workflow.md) | Re-aligning checkpoints / `CLAUDE.md` / skill docs after a merge changed status. |
 
 ## Global forbidden actions (apply to every playbook)
 
