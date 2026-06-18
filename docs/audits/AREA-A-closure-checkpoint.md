@@ -75,12 +75,13 @@ These are **pre-scale** items (relevant before two–three concurrent real tenan
 
 | Item | Workstream | Note |
 | :---- | :---- | :---- |
-| Composite FK hardening — even up `ReplyDraft → Conversation` and `Conversation → Customer` to the `Message` composite `[id, business_id]` pattern | A-H1 | Migration review; reads are app-checked today, so no open leak observed |
-| Assignee-is-member check — reject assigning a conversation to a non-active-member | A-H2 | Application + test check; exercised once assignment is used |
-| Concurrent multi-tenant isolation tests — parallel requests do not bleed via pool/cache | (A-R1 extension) | Required before widening to multiple simultaneous tenants |
-| Stronger route-backstop enforcement — AST/ESLint rule or typed route wrapper instead of the meta-test convention | (A-H4 hardening) | Strengthens the structural chokepoint against future bypass regressions |
+| Composite FK hardening — even up `ReplyDraft → Conversation` and `Conversation → Customer` to the `Message` composite `[id, business_id]` pattern | A-H1 | **Open.** Migration review; reads are app-checked today, so no open leak observed |
+| Assignee-is-member check — reject assigning a conversation to a non-active-member | A-H2 | **Open.** Application + test check; exercised once assignment is used |
+| Stronger route-backstop enforcement — AST/ESLint rule or typed route wrapper instead of the meta-test convention | (A-H4 hardening) | **Open.** Strengthens the structural chokepoint against future bypass regressions |
 
 None of these block the first single real-business backend gate; they harden the path to multi-tenant scale.
+
+**Update — Concurrent multi-tenant isolation tests: completed (PR #115, merge commit `b9a0eb3`).** The previously-open concurrent multi-tenant isolation item (A-R1 extension) — proving parallel requests do not bleed across tenants via connection pool or cache — is now **closed**: a real-DB concurrent tenant-isolation suite was merged in PR #115 and the real-DB **Tenant Isolation Integration** (A-R1) CI gate passed. This was a pre-scale hardening item, not a blocker to the Area A backend GREEN verdict. The remaining items above (A-H1 composite FK hardening, A-H2 assignee-is-member check, and the route-backstop hardening) **remain open by design**. This update closes one non-blocking hardening item only; it does not declare all Area A future hardening complete, and it does not change the §3 verdict or lift the §5 conditional blockers (Area B / AI, Area C / widget).
 
 ---
 
