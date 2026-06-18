@@ -18,7 +18,7 @@ You need to compress a long session into a short handoff — to continue later, 
 4. **Security constraints in force**: tenant isolation (server-derived `businessId`), RBAC/ABAC, dev-bypass guard, AI no-auto-send / metadata-only audit, no provider SDK / no env reads — list the ones the task touches, concretely enough to act on.
 5. **Validation status**: each of lint / typecheck / build / test = PASS/FAIL/skipped, with failures quoted, not summarized away.
 6. **Remaining TODOs**: ordered, blocking ones first.
-7. **Exact next command** to run on resume (copyable) — e.g. the next test or validation step.
+7. **Exact next command** to run on resume (copyable) — e.g. the next test or validation step. This is an **ephemeral** resume hint, not a durable decision: re-validate it via [session-bootstrap-workflow.md](session-bootstrap-workflow.md) on resume rather than trusting it blindly. Durable owner accept/defer/reject decisions belong in the non-authoritative `../decision-log.md`, which is **not** a status source and never replaces the checkpoints or git history (those win on conflict).
 8. **Pointers**: the checkpoint(s) and playbook(s) that govern the task.
 
 ## What must NOT be omitted

@@ -41,6 +41,14 @@ Playbooks are grouped by purpose. Read `CLAUDE.md` and the relevant `docs/audits
 | [session-bootstrap-workflow.md](session-bootstrap-workflow.md) | Starting any new session — branch/status/log check + read status before editing. |
 | [session-handoff-summary-workflow.md](session-handoff-summary-workflow.md) | Compressing a long session into a safe handoff without dropping guardrails. |
 
+### Planning
+
+| Playbook | Use when |
+| --- | --- |
+| [next-task-selection-workflow.md](next-task-selection-workflow.md) | Deciding "what's next?" — derive, risk-classify, and rank a recommendation for the owner; never self-authorize. |
+
+> `../decision-log.md` is **not** a playbook. It is a non-authoritative, append-only record of owner decisions read by the next-task selection workflow as one input — never a status source, never a backlog. Checkpoints in `docs/audits/` and git history always win.
+
 ### Output capture
 
 | Playbook | Use when |
