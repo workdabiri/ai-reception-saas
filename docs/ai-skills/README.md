@@ -46,6 +46,7 @@ Playbooks are grouped by purpose. Read `CLAUDE.md` and the relevant `docs/audits
 | Playbook | Use when |
 | --- | --- |
 | [next-task-selection-workflow.md](next-task-selection-workflow.md) | Deciding "what's next?" — derive, risk-classify, and rank a recommendation for the owner; never self-authorize. |
+| [owner-decision-support-workflow.md](owner-decision-support-workflow.md) | A non-technical owner must choose what to do with a plan/report/options/question — a **decision-support** playbook that frames the safest choice; grants no authority and starts no work (Critical/gated ⇒ STOP only). |
 
 > `../decision-log.md` is **not** a playbook. It is a non-authoritative, append-only record of owner decisions read by the next-task selection workflow as one input — never a status source, never a backlog. Checkpoints in `docs/audits/` and git history always win.
 

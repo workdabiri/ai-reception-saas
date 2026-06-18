@@ -156,9 +156,13 @@ Organized by layer: `foundation/` (toolchain + guard smoke), `domains/`, `api/` 
 
 Format: `<type>(<domain>): <lowercase imperative subject>` (see `docs/COMMIT_CONVENTION.md`). Types: `feat fix test refactor chore docs style perf`. Scope is the `src/domains/` folder name, or special scopes `infra` / `shared` (src/lib) / `prisma` / `deps`. One domain per commit; squash-merge only.
 
+## Decision authority
+
+Claude **recommends**; the owner **decides**. Claude never self-authorizes work, and any decision involving a "Never do" item or a "Remaining AI go-live gate" (Critical/gated) may only be recommended as **STOP** — never approve/auto-accept — and requires explicit written owner approval + a dedicated PR, with the external advisor / human backstop preserved. To turn a plan/report/options/question into an owner-ready choice, use `docs/ai-skills/owner-decision-support-workflow.md` (decision-support only; grants no authority). Risk levels are exactly Low / Medium / High / Critical from `docs/ai-skills/task-risk-classifier.md`.
+
 ## Reference docs
 
-- `docs/ai-skills/` — **repo-local operational playbooks** (session bootstrap, task-risk classifier, code-quality rules, git/PR workflow, security review, remediation, test-first hardening, PR-body writing, post-merge cleanup, AI no-auto-send guard, real-provider readiness gate, external tooling/MCP policy, session-handoff summary, terminal output capture, repo-docs sync, next-task selection). Start here for "how do I safely do X."
+- `docs/ai-skills/` — **repo-local operational playbooks** (session bootstrap, task-risk classifier, code-quality rules, git/PR workflow, security review, remediation, test-first hardening, PR-body writing, post-merge cleanup, AI no-auto-send guard, real-provider readiness gate, external tooling/MCP policy, session-handoff summary, terminal output capture, repo-docs sync, next-task selection, owner decision support). Start here for "how do I safely do X."
 - For proposing the next task, use `docs/ai-skills/next-task-selection-workflow.md` (it recommends, it does not authorize). `docs/decision-log.md` is non-authoritative and records owner decisions only; checkpoints and git history win on conflict.
 - `docs/DOMAIN_MAP.md` — domain dependency rules and Level A/B boundary (enumerates 18; see the note in **What this is** about the 19th module).
 - `docs/audits/` — Area A / Area B audits, remediation plans, and **closure checkpoints** (authoritative status).
