@@ -23,6 +23,8 @@
 | 17  | **Billing**       | `billing/`       | Subscriptions, usage ledgers, payment foundations                         |
 | 18  | **Analytics**     | `analytics/`     | Conversation/handoff/order metrics, dashboards                            |
 
+> **Repo reality note (count/list):** This table enumerates the **18 canonical Level-A/Level-B domains**. `src/domains/` currently contains a **19th directory, `reply-drafts/`**, that this map does not list as a numbered domain. It is a real, implemented module (reply-draft generate/edit/approve/discard workflow). When the directory and this map disagree, **trust `src/domains/` and each domain's `README.md`**. Do not treat the "18" here as the directory count.
+
 ## Domain Dependency Rules
 
 ### Allowed

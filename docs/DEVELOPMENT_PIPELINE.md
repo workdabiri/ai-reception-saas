@@ -1,5 +1,7 @@
 # Development Pipeline
 
+> **Status:** The phase map below is a **historical planning roadmap**, not live status. For current, authoritative status read git history / merged PRs and `docs/audits/*-closure-checkpoint.md`, then `CLAUDE.md`. The merge/validation rules are defined in [docs/engineering/merge-gate.md](engineering/merge-gate.md) and [docs/engineering/workflow.md](engineering/workflow.md) — those win over the branch/PR notes here.
+
 ## Phase Map
 
 ### Phase 0 — Domain Setup & Repo Discipline ✅
@@ -83,23 +85,26 @@
 
 ## Branch Strategy
 
-| Branch                    | Purpose                              |
-| ------------------------- | ------------------------------------ |
-| `main`                    | Production-ready code                |
-| `develop`                 | Integration branch for current phase |
-| `task-XXXX-<description>` | Individual task branches             |
+> The early plan below used a long-lived `develop` integration branch and
+> `task-XXXX` branch names. **Current reality:** there is no `develop` branch —
+> all PRs target `main` and are **squash-merged** after owner approval. See
+> [docs/engineering/workflow.md](engineering/workflow.md) and
+> [docs/ai-skills/git-pr-workflow.md](ai-skills/git-pr-workflow.md).
+
+| Branch                | Purpose                                            |
+| --------------------- | -------------------------------------------------- |
+| `main`                | Production-ready code; PRs squash-merge here        |
+| `<type>/<short-topic>` | Individual task branches (e.g. `docs/short-topic`) |
 
 ### Workflow
 
-1. Create branch from `develop`: `task-XXXX-<short-description>`
-2. Implement task
-3. Run all checks: `pnpm lint && pnpm typecheck && pnpm build && pnpm test`
-4. Push and create PR to `develop`
-5. Review, approve, merge
-6. When phase is complete, merge `develop` → `main`
+1. Create a branch from `main`: `<type>/<short-topic>`
+2. Implement the task
+3. Run the merge-gate checks: `pnpm lint && pnpm typecheck && pnpm build && pnpm test`, then a clean `git status --short`
+4. Push and open a PR to `main` (only when explicitly asked)
+5. Review, owner approval, **squash-merge**
 
 ### PR Conventions
 
-- Title: `<type>(<domain>): TASK-XXXX <description>`
-- Body: Include DoD checklist, test results, evidence pack
-- Labels: `phase-N`, domain name, `P0`/`P1`/`P2` priority
+- Title: `<type>(<scope>): <lowercase imperative subject>` ([COMMIT_CONVENTION.md](COMMIT_CONVENTION.md))
+- Body: satisfy the merge gate ([docs/engineering/merge-gate.md](engineering/merge-gate.md)) — diff review, scope check, validation results, smoke notes

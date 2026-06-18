@@ -2,6 +2,25 @@
 
 ---
 
+> ## ⚠️ Historical / Superseded — not the current source of truth
+>
+> This file is **historical handoff context** captured during the AntiGravity migration (2026-06-11/12). It is preserved for background only.
+>
+> It is **not** the current source of truth for repo status, next tasks, security/audit status, or the Claude workflow. Many specifics here (PR/commit counts, "AI runtime not implemented", domain counts, branch/`develop` workflow, next-task lists) reflect a snapshot that later work has moved past. Do **not** quote it as live status.
+>
+> **Current source-of-truth order (highest wins on conflict):**
+>
+> 1. git history / merged PRs
+> 2. `docs/audits/*-closure-checkpoint.md` (authoritative status)
+> 3. `docs/audits/*-remediation-plan.md`
+> 4. `CLAUDE.md`
+> 5. `docs/ai-skills/*.md` (operational playbooks; grant no authority)
+> 6. `docs/decision-log.md` — **non-authoritative** owner-decision record only
+>
+> The owner remains the final authorization authority. This file does not grant authority and must not be used to declare the product "Private Alpha ready" or "real-provider AI ready."
+
+---
+
 ## 0. Report Metadata
 
 | Field | Value |

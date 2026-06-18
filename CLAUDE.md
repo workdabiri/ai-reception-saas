@@ -168,4 +168,4 @@ Claude **recommends**; the owner **decides**. Claude never self-authorizes work,
 - `docs/audits/` — Area A / Area B audits, remediation plans, and **closure checkpoints** (authoritative status).
 - `docs/architecture/` — auth/tenant/schema design notes; `access-control-matrix.md` for RBAC.
 - `docs/engineering/` — merge-gate, production-migrations, workflow, task-review-policy.
-- `docs/QA_STRATEGY.md`, `docs/HANDOFF_FROM_ANTIGRAVITY.md`, `docs/checkpoints/`.
+- `docs/QA_STRATEGY.md`, `docs/checkpoints/`. `docs/HANDOFF_FROM_ANTIGRAVITY.md` is **historical** migration context only — not current status (its banner lists the source-of-truth order; git history + `docs/audits/*-closure-checkpoint.md` win).
