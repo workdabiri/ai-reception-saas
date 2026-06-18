@@ -941,4 +941,358 @@ describeIntegration('Tenant identity repositories integration', () => {
       }
     });
   });
+
+  // =========================================================================
+  // Concurrent Cross-Tenant Isolation (A-R1 extension)
+  //
+  // AREA-A-closure-checkpoint.md §4 pre-scale item: prove that parallel
+  // requests for multiple tenants sharing one Prisma client / connection pool
+  // do not bleed data across tenant boundaries through pooling, stale request
+  // scope, caching, or an accidentally unscoped query.
+  //
+  // A fleet of independent businesses is seeded concurrently through the same
+  // production wiring (`createApiDependencies({ prisma })`) the API handlers
+  // use. Every tenant then reads and mutates its OWN data while concurrently
+  // attempting to reach EVERY OTHER tenant's data — all interleaved under
+  // `Promise.all`. Each tenant tags its rows with a unique marker so any
+  // cross-tenant bleed is detectable, and every foreign read/write is asserted
+  // to fail closed. These foreign-scope assertions are the regression teeth:
+  // if a repository query dropped its `businessId` filter, the foreign reads
+  // would return another tenant's rows instead of null and the test would fail.
+  // =========================================================================
+
+  describe('Concurrent Cross-Tenant Isolation (A-R1 extension)', () => {
+    // Small fleet of simultaneous tenants — enough to interleave many parallel
+    // queries over the shared pool while staying deterministic and fast.
+    const TENANT_COUNT = 4;
+
+    interface SeededTenant {
+      label: string;
+      marker: string;
+      userId: string;
+      businessId: string;
+      customerId: string;
+      conversationId: string;
+      messageId: string;
+      draftId: string;
+    }
+
+    let deps: ReturnType<typeof createApiDependencies>;
+    let tenants: SeededTenant[];
+
+    beforeEach(async () => {
+      deps = createApiDependencies({
+        prisma: prisma as unknown as PrismaCompatibleClient,
+      });
+      const { identity, tenancy, crm, conversations, replyDrafts } =
+        deps.repositories;
+      const suffix = randomUUID();
+
+      async function seedTenant(index: number): Promise<SeededTenant> {
+        const label = `c${index}`;
+        // Unique per-tenant marker stamped onto every owned row so that any
+        // cross-tenant bleed shows up as the wrong marker on a read.
+        const marker = `marker-${label}-${suffix}`;
+
+        const userRes = await identity.createUser({
+          email: `${label}-${suffix}@example.com`,
+          name: `${label} owner`,
+          locale: 'en',
+        });
+        if (!userRes.ok) throw new Error(`seed ${label} user failed`);
+        const userId = userRes.data.id;
+
+        const bizRes = await tenancy.createBusiness({
+          name: `Business ${label} ${suffix}`,
+          slug: `biz-${label}-${suffix}`.slice(0, 64),
+          createdByUserId: userId,
+        });
+        if (!bizRes.ok) throw new Error(`seed ${label} business failed`);
+        const businessId = bizRes.data.id;
+
+        const memRes = await tenancy.createMembership({
+          businessId,
+          userId,
+          role: 'OWNER',
+          status: 'ACTIVE',
+        });
+        if (!memRes.ok) throw new Error(`seed ${label} membership failed`);
+
+        const customerRes = await crm.createCustomer({
+          businessId,
+          displayName: marker,
+        });
+        if (!customerRes.ok) throw new Error(`seed ${label} customer failed`);
+
+        const convRes = await conversations.createConversation({
+          businessId,
+          customerId: customerRes.data.id,
+          channel: 'INTERNAL',
+        });
+        if (!convRes.ok) throw new Error(`seed ${label} conversation failed`);
+
+        const msgRes = await conversations.createMessage({
+          conversationId: convRes.data.id,
+          businessId,
+          direction: 'OUTBOUND',
+          senderType: 'OPERATOR',
+          senderUserId: userId,
+          content: marker,
+        });
+        if (!msgRes.ok) throw new Error(`seed ${label} message failed`);
+
+        const draftRes = await replyDrafts.createSystemDraft({
+          businessId,
+          conversationId: convRes.data.id,
+          createdByUserId: userId,
+          draftText: marker,
+        });
+        if (!draftRes.ok) throw new Error(`seed ${label} draft failed`);
+
+        return {
+          label,
+          marker,
+          userId,
+          businessId,
+          customerId: customerRes.data.id,
+          conversationId: convRes.data.id,
+          messageId: msgRes.data.id,
+          draftId: draftRes.data.id,
+        };
+      }
+
+      // Seed the whole fleet concurrently to stress the shared client/pool.
+      tenants = await Promise.all(
+        Array.from({ length: TENANT_COUNT }, (_unused, i) => seedTenant(i)),
+      );
+
+      // Sanity: every tenant got a distinct businessId and a distinct marker.
+      expect(new Set(tenants.map((t) => t.businessId)).size).toBe(TENANT_COUNT);
+      expect(new Set(tenants.map((t) => t.marker)).size).toBe(TENANT_COUNT);
+    });
+
+    it('parallel reads across the full reader×target matrix return only own-tenant rows and never bleed', async () => {
+      const crmService = deps.services.crm;
+      const convService = deps.services.conversations;
+      const draftsRepo = deps.repositories.replyDrafts;
+
+      // Build the complete cross-product of (reader, target) and run EVERY
+      // read concurrently through the one shared Prisma client. When reader and
+      // target differ, every read must resolve to null (fail-closed); when they
+      // are the same tenant, the read must return exactly that tenant's row with
+      // its own marker — proving no concurrent request bled scope into another.
+      const ops = tenants.flatMap((reader) =>
+        tenants.map((target) =>
+          (async () => {
+            const [customer, conversation, message, draft] = await Promise.all([
+              crmService.findCustomerById({
+                customerId: target.customerId,
+                businessId: reader.businessId,
+              }),
+              convService.findConversationById({
+                conversationId: target.conversationId,
+                businessId: reader.businessId,
+              }),
+              convService.findMessageById({
+                messageId: target.messageId,
+                businessId: reader.businessId,
+              }),
+              draftsRepo.findByBusinessConversationAndId(
+                reader.businessId,
+                target.conversationId,
+                target.draftId,
+              ),
+            ]);
+            return { reader, target, customer, conversation, message, draft };
+          })(),
+        ),
+      );
+
+      const results = await Promise.all(ops);
+      // reader×target matrix is fully covered.
+      expect(results.length).toBe(TENANT_COUNT * TENANT_COUNT);
+
+      for (const r of results) {
+        const sameTenant = r.reader.businessId === r.target.businessId;
+
+        // All reads succeed at the ActionResult level regardless of scope.
+        expect(r.customer.ok).toBe(true);
+        expect(r.conversation.ok).toBe(true);
+        expect(r.message.ok).toBe(true);
+        expect(r.draft.ok).toBe(true);
+        if (!r.customer.ok || !r.conversation.ok || !r.message.ok || !r.draft.ok) {
+          continue;
+        }
+
+        if (sameTenant) {
+          // Own data is visible, correctly scoped, and carries only this
+          // tenant's marker — no other tenant's marker ever appears here.
+          expect(r.customer.data).not.toBeNull();
+          expect(r.customer.data?.id).toBe(r.target.customerId);
+          expect(r.customer.data?.businessId).toBe(r.reader.businessId);
+          expect(r.customer.data?.displayName).toBe(r.reader.marker);
+
+          expect(r.conversation.data).not.toBeNull();
+          expect(r.conversation.data?.id).toBe(r.target.conversationId);
+          expect(r.conversation.data?.businessId).toBe(r.reader.businessId);
+
+          expect(r.message.data).not.toBeNull();
+          expect(r.message.data?.id).toBe(r.target.messageId);
+          expect(r.message.data?.businessId).toBe(r.reader.businessId);
+          expect(r.message.data?.content).toBe(r.reader.marker);
+
+          expect(r.draft.data).not.toBeNull();
+          expect(r.draft.data?.id).toBe(r.target.draftId);
+          expect(r.draft.data?.businessId).toBe(r.reader.businessId);
+          expect(r.draft.data?.draftText).toBe(r.reader.marker);
+        } else {
+          // Foreign data is invisible across every concurrent path. These are
+          // the assertions that would fail if a query forgot its businessId
+          // scope (it would surface the target tenant's row instead of null).
+          expect(r.customer.data).toBeNull();
+          expect(r.conversation.data).toBeNull();
+          expect(r.message.data).toBeNull();
+          expect(r.draft.data).toBeNull();
+        }
+      }
+    });
+
+    it('parallel list reads stay tenant-scoped and contain no foreign markers', async () => {
+      const crmService = deps.services.crm;
+      const convService = deps.services.conversations;
+      const draftsRepo = deps.repositories.replyDrafts;
+
+      // Every tenant lists its own customers, conversations, and dashboard
+      // drafts at the same time. Each listing must contain exactly that
+      // tenant's marker and none of the other tenants' markers.
+      const listings = await Promise.all(
+        tenants.map((tenant) =>
+          (async () => {
+            const [customers, conversations, dashboard] = await Promise.all([
+              crmService.listCustomers({ businessId: tenant.businessId }),
+              convService.listConversations({ businessId: tenant.businessId }),
+              draftsRepo.getDashboardDrafts(tenant.businessId, 50),
+            ]);
+            return { tenant, customers, conversations, dashboard };
+          })(),
+        ),
+      );
+
+      for (const { tenant, customers, conversations, dashboard } of listings) {
+        const foreignMarkers = tenants
+          .filter((t) => t.businessId !== tenant.businessId)
+          .map((t) => t.marker);
+
+        expect(customers.ok).toBe(true);
+        if (customers.ok) {
+          const ids = customers.data.data.map((c) => c.id);
+          const names = customers.data.data.map((c) => c.displayName);
+          expect(ids).toEqual([tenant.customerId]);
+          expect(names).toEqual([tenant.marker]);
+          for (const foreign of foreignMarkers) {
+            expect(names).not.toContain(foreign);
+          }
+        }
+
+        expect(conversations.ok).toBe(true);
+        if (conversations.ok) {
+          const ids = conversations.data.data.map((c) => c.id);
+          expect(ids).toEqual([tenant.conversationId]);
+          expect(
+            conversations.data.data.every(
+              (c) => c.businessId === tenant.businessId,
+            ),
+          ).toBe(true);
+        }
+
+        expect(dashboard.ok).toBe(true);
+        if (dashboard.ok) {
+          const draftIds = dashboard.data.drafts.map((d) => d.id);
+          const draftPreviews = dashboard.data.drafts.map((d) => d.draftTextPreview);
+          expect(draftIds).toEqual([tenant.draftId]);
+          expect(draftPreviews).toEqual([tenant.marker]);
+          for (const foreign of foreignMarkers) {
+            expect(draftPreviews).not.toContain(foreign);
+          }
+        }
+      }
+    });
+
+    it('parallel mutations only ever touch own-tenant rows; concurrent foreign writes fail closed', async () => {
+      const crmService = deps.services.crm;
+
+      // Each tenant concurrently (a) renames its OWN customer to a fresh marker
+      // and (b) attempts to rename EVERY other tenant's customer. Interleaving
+      // own + foreign writes over the shared client is where stale-scope reuse
+      // would leak; the post-state proves it does not.
+      const renamed = (marker: string): string => `${marker}-renamed`;
+
+      const mutations = tenants.flatMap((actor) => [
+        // own write — must succeed
+        (async () => {
+          const res = await crmService.updateCustomer(
+            actor.customerId,
+            actor.businessId,
+            { displayName: renamed(actor.marker) },
+          );
+          return { kind: 'own' as const, actor, res };
+        })(),
+        // foreign writes — must each be denied
+        ...tenants
+          .filter((target) => target.businessId !== actor.businessId)
+          .map((target) =>
+            (async () => {
+              const res = await crmService.updateCustomer(
+                target.customerId,
+                actor.businessId,
+                { displayName: `intruder-from-${actor.label}` },
+              );
+              return { kind: 'foreign' as const, actor, target, res };
+            })(),
+          ),
+      ]);
+
+      const outcomes = await Promise.all(mutations);
+
+      for (const outcome of outcomes) {
+        if (outcome.kind === 'own') {
+          expect(outcome.res.ok).toBe(true);
+          if (outcome.res.ok) {
+            expect(outcome.res.data.id).toBe(outcome.actor.customerId);
+            expect(outcome.res.data.businessId).toBe(outcome.actor.businessId);
+            expect(outcome.res.data.displayName).toBe(renamed(outcome.actor.marker));
+          }
+        } else {
+          // Cross-tenant write is rejected — the foreign customer is never found
+          // under the actor's businessId scope.
+          expect(outcome.res.ok).toBe(false);
+          if (!outcome.res.ok) {
+            expect(outcome.res.error.code).toBe('CUSTOMER_NOT_FOUND');
+          }
+        }
+      }
+
+      // Post-state: every tenant's customer carries exactly its OWN renamed
+      // marker — no intruder write from any other concurrent tenant landed.
+      const finalStates = await Promise.all(
+        tenants.map((tenant) =>
+          crmService
+            .findCustomerById({
+              customerId: tenant.customerId,
+              businessId: tenant.businessId,
+            })
+            .then((res) => ({ tenant, res })),
+        ),
+      );
+
+      for (const { tenant, res } of finalStates) {
+        expect(res.ok).toBe(true);
+        if (res.ok) {
+          expect(res.data).not.toBeNull();
+          expect(res.data?.displayName).toBe(renamed(tenant.marker));
+          expect(res.data?.businessId).toBe(tenant.businessId);
+        }
+      }
+    });
+  });
 });
