@@ -16,7 +16,7 @@ The **first thing in every new Claude Code session** in this repo, before readin
 4. Read `CLAUDE.md` fully — current status, guardrails, architecture, and the "Never do" list. It overrides defaults.
 5. Read the authoritative status: the relevant `docs/audits/*-closure-checkpoint.md` for any auth / tenancy / AI work. When a checkpoint and another doc disagree, the checkpoint wins.
 6. Read the matching `docs/ai-skills/*` playbook(s) for the task type (see [README.md](README.md)), and classify the task with [task-risk-classifier.md](task-risk-classifier.md).
-7. Summarize current status back to the owner **before editing**: branch, last commit, what's open, which guardrails apply.
+7. Summarize current status back to the owner **before editing**: branch, last commit, what's open, which guardrails apply. If the next task is undecided (or the owner asks "what's next?"), run [next-task-selection-workflow.md](next-task-selection-workflow.md) to derive a recommendation — it recommends, it does not authorize.
 8. For anything classified medium+ or security-sensitive, propose a short plan and get approval before the first edit.
 
 ## Validation commands
