@@ -45,6 +45,7 @@ Playbooks are grouped by purpose. Read `CLAUDE.md` and the relevant `docs/audits
 
 | Playbook | Use when |
 | --- | --- |
+| [task-cycle-orchestrator-workflow.md](task-cycle-orchestrator-workflow.md) | Sequencing a whole task cycle (orient → choose → owner gate → branch → implement → validate → commit/PR → merge → docs-sync) — a **thin sequencer** that hands off to the specialist playbooks; grants no authority, no loop/cron, no stored task, never overrides risk/PR rules or self-merges. |
 | [next-task-selection-workflow.md](next-task-selection-workflow.md) | Deciding "what's next?" — derive, risk-classify, and rank a recommendation for the owner; never self-authorize. |
 | [owner-decision-support-workflow.md](owner-decision-support-workflow.md) | A non-technical owner must choose what to do with a plan/report/options/question — a **decision-support** playbook that frames the safest choice; grants no authority and starts no work (Critical/gated ⇒ STOP only). |
 
