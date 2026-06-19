@@ -48,7 +48,7 @@ Key: **BLOCKER** (must close before real customer data enters any AI prompt) · 
 | B-R1 | Business `aiMode` + default-off kill switch | **BLOCKER** |
 | B-R2 | Verified business-context store + provenance | **BLOCKER** |
 | B-R3 | Tenant-scoped AI context assembler | **BLOCKER** |
-| B-R4 | Provider abstraction + deterministic fake provider | **BLOCKER** |
+| B-R4 | Provider abstraction + deterministic fake provider | **BLOCKER** — *operational provider error handling additionally test+doc-proven for the current fake-provider scope (PR #126); see the B-R4 entry below* |
 | B-R5 | Prompt builder with provenance-aware refusal rules | **BLOCKER** |
 | B-R6 | AI generation audit log + draft metadata | **BLOCKER** |
 | B-R7 | Cross-tenant AI-context isolation test suite | **BLOCKER** (PRD §9 AI gate) |
@@ -173,6 +173,7 @@ B-R2, B-R3, and B-R4 are mutually independent and may proceed in parallel after 
 ### B-R4 — Provider abstraction + deterministic fake provider
 
 - **Classification.** BLOCKER. (Audit B-5.)
+- **Status (2026-06-20).** B-R4 itself is **CLOSED** (PR #101 / `f3f5698`). Layered on top of it, **PR #126 / `2823e88`** added a **test + doc proof for provider _operational_ error handling** in the current fake-provider scope — covering the failure outcomes a real provider raises *after* accepting a well-formed request (timeouts, rate limits, upstream outages, content-policy blocks, unclassified failures), which the deterministic fake provider cannot model. It added a test-only fault provider helper (`__tests__/_helpers/ai-runtime-fault-provider.ts`), a dedicated suite (`__tests__/domains/ai-runtime-provider-error-handling.test.ts`), and the contract spec (`docs/audits/AREA-B-provider-error-handling.md`). The suite proves each of the five vendor-neutral operational scenarios (timeout / rate_limited / unavailable / content_filtered / unknown) is **fail-closed** through the existing `ActionResult` `err(...)` contract and recorded as exactly one metadata-only **B-R6 audit `FAILED` row** (tenant-scoped by `businessId`, terminal-immutable), with **no draft and no send/message path** on failure and **no raw prompt / generated text / PII** persisted. This is **test/doc-only**: **no production code, no production error taxonomy (`src/domains/ai-runtime/types.ts` untouched), no real provider, no SDK, no `process.env` / API-key read, no route-level generation wiring, no schema/migration, and no auto-send** were added. The closure checkpoint §6 records the provider-error-handling gate as **CLOSED for the current fake-provider AI-runtime scope**; **real-provider production AI-assisted go-live remains NOT YET APPROVED**, and a real provider (plan **B-H3**) must re-prove this contract (vendor → taxonomy mapping, real timeouts/retries, audit `FAILED` mapping) under its own gate.
 - **Purpose.** A provider **interface** with no SDK hardcoded into domain logic, plus a **deterministic fake provider** so the runtime is testable without a live model and without spend.
 - **Files likely touched.** New `src/domains/ai-runtime/provider/*` (interface + fake), `composition.ts` (DI wiring).
 - **Schema / migration impact.** None.
@@ -213,6 +214,7 @@ B-R2, B-R3, and B-R4 are mutually independent and may proceed in parallel after 
 ### B-R6 — AI generation audit log + draft metadata
 
 - **Classification.** BLOCKER. (Audit B-6.)
+- **Status (2026-06-20).** B-R6 is **CLOSED** (PR #103 / `cb0d00f`). Its audit `FAILED` lifecycle is now additionally exercised by an **operational-failure proof**: **PR #126 / `2823e88`** drives provider operational failures (timeout / rate_limited / unavailable / content_filtered / unknown, via a test-only fault provider) through `completeFailure(...)` and proves exactly one metadata-only `FAILED` row per failed attempt — tenant-scoped by `businessId`, terminal-immutable, with no raw prompt / generated text / PII persisted and no draft or send/message path on the failure branch. See the B-R4 status note above and the contract spec `docs/audits/AREA-B-provider-error-handling.md`. Test/doc-only; **no real provider, no route-level wiring, no env/API-key work** added; **real-provider production AI-assisted go-live remains NOT YET APPROVED**.
 - **Purpose.** Traceability: every generation emits an audit event; the resulting draft records `source = AI` and its model metadata. **No auto-send.**
 - **Files likely touched.** `reply-drafts/generate/handler.ts` (real generation path replacing the SYSTEM stub when AI enabled), `reply-drafts/repository.ts` (populate model metadata), `audit` service.
 - **Schema / migration impact.** None expected — `ReplyDraft.modelProvider` / `modelName` / `promptVersion` columns and `ReplyDraftSource.AI` / `AuditActorType.AI_RECEPTIONIST` enum values already exist (forward-scaffolding placeholders); this task **populates** them. If any column is missing, add it as an additive migration.
