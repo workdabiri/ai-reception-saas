@@ -53,7 +53,7 @@ Key: **BLOCKER** (must close before real customer data enters any AI prompt) · 
 | B-R6 | AI generation audit log + draft metadata | **BLOCKER** |
 | B-R7 | Cross-tenant AI-context isolation test suite | **BLOCKER** (PRD §9 AI gate) |
 | B-R8 | No-auto-send + human-approval lock | **SHOULD_DO_BEFORE_ALPHA** |
-| B-H1 | Data-minimization policy | **SHOULD_DO_BEFORE_ALPHA** |
+| B-H1 | Data-minimization policy | **SHOULD_DO_BEFORE_ALPHA** — *IMPLEMENTED for the current fake-provider AI-runtime scope (PR #123 spec + PR #124 enforcement); see the B-H1 entry below* |
 | B-H2 | Multi-vertical refusal generalization | **LATER** |
 | B-H3 | Provider vendor integration (after fake provider) | **LATER** |
 | B-H4 | Evaluation / confidence / risk scoring | **LATER** |
@@ -276,6 +276,7 @@ These are **not** required before the real-data gate (unless noted) and are not 
 
 #### B-H1 — Data-minimization policy
 - **Classification.** SHOULD_DO_BEFORE_ALPHA.
+- **Status (2026-06-20).** **IMPLEMENTED for the current fake-provider AI-runtime scope** by **PR #123** (spec added — `docs/audits/AREA-B-pii-data-minimization-allowlist.md`) + **PR #124 / `2f4d015`** (enforcement + test). PR #124 centralized the prompt-renderable allowlist (`PROMPT_RENDERABLE_ITEM_FIELDS` in `src/domains/ai-runtime/types.ts`), refactored `prompt-builder.ts` to render verified-context items by iterating that allowlist, and added `__tests__/domains/ai-runtime-data-minimization.test.ts` proving allowlisted verified-context fields render while customer / CustomerContactMethod / conversation / message / reply-draft-shaped fields and internal/provenance fields (`sourceMetadata` / `sourceUrl` / `verifiedByUserId` / internal item id / per-item `businessId` / `status` / `createdByUserId`) do not. **Real-provider use remains blocked by the remaining go-live gates:** this work added **no real provider, no SDK, no env/API-key read, no route-level generation wiring, no schema/migration, and no auto-send**, and does **not** approve customer-message-in-prompt. The closure checkpoint §6 records B-H1 as **CLOSED for the current fake-provider AI-runtime prompt-builder scope**; real-provider production AI-assisted go-live remains **NOT YET APPROVED**.
 - **Purpose.** An explicit **allowlist** of fields permitted into a prompt; unneeded PII excluded by construction.
 - **Acceptance criteria.** Only allowlisted fields enter a prompt; excluded PII proven absent by test.
 - **Recommended model / effort.** Opus 4.8 High / Low–Medium. **Suggested branch.** `feat/b-h1-data-minimization`. **Merge gate.** Allowlist test proving excluded PII never reaches the prompt.
