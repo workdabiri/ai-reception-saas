@@ -9,7 +9,9 @@
 
 ## 0. Status
 
-> **Status: PROPOSED / TEST-PROVEN FOR CURRENT FAKE-PROVIDER SCOPE**
+> **Status: ADOPTED / TEST-PROVEN FOR CURRENT FAKE-PROVIDER SCOPE**
+
+> **Adopted — PR #126 / commit `2823e88` / 2026-06-20.** This contract is now **adopted and test-proven for the current fake-provider AI-runtime scope**. PR #126 landed the test-only fault provider helper (`__tests__/_helpers/ai-runtime-fault-provider.ts`) and the dedicated provider error-handling suite (`__tests__/domains/ai-runtime-provider-error-handling.test.ts`) that prove §3–§5 end-to-end, and this document was added alongside them. The `docs/audits/AREA-B-closure-checkpoint.md` §6 "Provider error handling" gate is recorded **CLOSED for the current fake-provider AI-runtime scope** as of the same date. Adoption is **scoped to the current fake-provider boundary only** and changes none of the hard caveats below: **real-provider production AI-assisted go-live remains NOT YET APPROVED**, **no real provider is integrated or approved**, **no route-level generation is wired**, **no env/API-key work is authorized**, **no auto-send path exists**, and **customer-message-in-prompt remains STOP / future owner-gated**. A real provider must re-prove this contract (vendor → taxonomy mapping, real timeouts/retries, audit `FAILED` mapping) under its own gate (§6) before go-live.
 
 This document defines the vendor-neutral **operational** error-handling contract for the AI runtime and is **test-proven for the current fake-provider scope** by `__tests__/domains/ai-runtime-provider-error-handling.test.ts` (using the test-only `__tests__/_helpers/ai-runtime-fault-provider.ts`). It is a **policy / specification** plus a **test proof**; it integrates **no real provider** and authorizes none.
 
@@ -154,4 +156,4 @@ This document closes the §6 provider-error-handling gate **for the current fake
 
 ---
 
-*AREA-B provider operational error-handling contract — PROPOSED / TEST-PROVEN FOR CURRENT FAKE-PROVIDER SCOPE (2026-06-20). Defines the vendor-neutral operational taxonomy (§3), postures (§4), audit FAILED mapping (§5), and real-provider adapter mapping requirements (§6), proven by `__tests__/domains/ai-runtime-provider-error-handling.test.ts`. Adds no real provider, no SDK, no env/API-key read, no route wiring, no schema/migration, and no auto-send. Real-provider production AI-assisted go-live remains NOT YET APPROVED.*
+*AREA-B provider operational error-handling contract — ADOPTED / TEST-PROVEN FOR CURRENT FAKE-PROVIDER SCOPE (adopted PR #126 / `2823e88` / 2026-06-20). Defines the vendor-neutral operational taxonomy (§3), postures (§4), audit FAILED mapping (§5), and real-provider adapter mapping requirements (§6), proven by `__tests__/domains/ai-runtime-provider-error-handling.test.ts`. Adds no real provider, no SDK, no env/API-key read, no route wiring, no schema/migration, and no auto-send. Real-provider production AI-assisted go-live remains NOT YET APPROVED.*
