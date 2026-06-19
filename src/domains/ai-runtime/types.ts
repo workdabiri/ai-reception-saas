@@ -117,6 +117,56 @@ export interface AssembledAiContext {
   readonly assembledAt: string;
 }
 
+// ---------------------------------------------------------------------------
+// Prompt data-minimization allowlist (B-H1)
+// ---------------------------------------------------------------------------
+
+/**
+ * A single allowlisted field that MAY be rendered into AI prompt text, with its
+ * render order and blank-handling. The `field` is constrained to the subset of
+ * `AssembledBusinessContextItem` keys the owner-reviewed allowlist permits.
+ */
+export interface PromptRenderableItemField {
+  readonly field: Extract<
+    keyof AssembledBusinessContextItem,
+    'category' | 'key' | 'value' | 'sourceType' | 'sourceLabel' | 'verifiedAt'
+  >;
+  /** When true the field is omitted from prompt text if absent / blank. */
+  readonly omitWhenBlank: boolean;
+}
+
+/**
+ * The CENTRAL, single source of truth for which verified-context item fields may
+ * enter a reply-draft prompt (PRD-v1.1 §5.1; data-minimization spec
+ * `docs/audits/AREA-B-pii-data-minimization-allowlist.md` §5). The prompt builder
+ * renders items STRICTLY by iterating this list, so it can never reach for a
+ * field that is not declared here — a field later added to the item type is
+ * excluded from prompts by default (fail-closed / default-deny), and the
+ * render-order is fixed for deterministic output.
+ *
+ * Item fields deliberately ABSENT here are FORBIDDEN from prompt text by §6 of
+ * the same spec: the internal item `id`, per-item `businessId`, lifecycle
+ * `status`, `sourceUrl`, raw `sourceMetadata`, `verifiedByUserId`, and
+ * `createdByUserId`. The full denylist / sensitive-field + credential contract is
+ * owned by the data-minimization test
+ * (`__tests__/domains/ai-runtime-data-minimization.test.ts`) as its single source
+ * of truth — keeping those tokens OUT of production source so they cannot trip
+ * (or hollow out) the B-R7 §7 / B-R8 §1 static scope guards.
+ */
+export const PROMPT_RENDERABLE_ITEM_FIELDS: readonly PromptRenderableItemField[] =
+  [
+    { field: 'category', omitWhenBlank: false },
+    { field: 'key', omitWhenBlank: false },
+    { field: 'value', omitWhenBlank: false },
+    { field: 'sourceType', omitWhenBlank: false },
+    { field: 'sourceLabel', omitWhenBlank: true },
+    { field: 'verifiedAt', omitWhenBlank: true },
+  ];
+
+/** The allowlisted prompt-renderable field NAMES, in render order. */
+export const PROMPT_RENDERABLE_ITEM_FIELD_NAMES: readonly string[] =
+  PROMPT_RENDERABLE_ITEM_FIELDS.map((f) => f.field);
+
 // ===========================================================================
 // AI Provider Boundary — Types (B-R4)
 //
