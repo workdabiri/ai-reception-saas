@@ -29,6 +29,7 @@
 
 import { z } from 'zod';
 import { ok, err, type ActionResult } from '@/lib/result';
+import { PROMPT_RENDERABLE_ITEM_FIELDS } from './types';
 import type {
   AiProviderGenerateTextRequest,
   AssembledAiContext,
@@ -255,25 +256,34 @@ function buildSystemRules(): string {
 }
 
 /**
- * Renders a single verified item into a SAFE, bounded block. Emits ONLY
- * business-owned content plus customer-safe provenance labels. It deliberately
- * never reads `id`, `verifiedByUserId`, `sourceMetadata`, `sourceUrl`,
- * `status`, or any per-item businessId — those must not enter the prompt.
+ * Renders a single verified item into a SAFE, bounded block by iterating the
+ * CENTRAL data-minimization allowlist (`PROMPT_RENDERABLE_ITEM_FIELDS`, B-H1) —
+ * not an ad-hoc inline field list. Only allowlisted fields are emitted, in the
+ * allowlist's fixed order; required fields always render and optional provenance
+ * labels (`sourceLabel` / `verifiedAt`) render only when present and non-blank.
+ *
+ * Because the field set is sourced from the allowlist, this function structurally
+ * cannot emit a non-allowlisted field: `id`, `verifiedByUserId`, `sourceMetadata`,
+ * `sourceUrl`, `status`, `createdByUserId`, or any per-item businessId never enter
+ * the prompt — a field added to the item type is excluded by default. Output is
+ * byte-identical to the prior hand-written form (verified by the prompt-builder
+ * and data-minimization suites).
  */
 function formatItem(item: AssembledBusinessContextItem): string {
-  const lines = [
-    `- category: ${item.category}`,
-    `  key: ${item.key}`,
-    `  value: ${item.value}`,
-    `  sourceType: ${item.sourceType}`,
-  ];
-  if (item.sourceLabel && item.sourceLabel.trim().length > 0) {
-    lines.push(`  sourceLabel: ${item.sourceLabel}`);
+  const lines: string[] = [];
+  for (const { field, omitWhenBlank } of PROMPT_RENDERABLE_ITEM_FIELDS) {
+    const raw = item[field];
+    const text = typeof raw === 'string' ? raw : '';
+    if (omitWhenBlank && text.trim().length === 0) {
+      continue;
+    }
+    lines.push(`${field}: ${text}`);
   }
-  if (item.verifiedAt && item.verifiedAt.trim().length > 0) {
-    lines.push(`  verifiedAt: ${item.verifiedAt}`);
-  }
-  return lines.join('\n');
+  // The first allowlisted field carries the list bullet; the rest are indented
+  // continuation lines (category is required, so the bullet is always present).
+  return lines
+    .map((line, index) => (index === 0 ? `- ${line}` : `  ${line}`))
+    .join('\n');
 }
 
 /**
