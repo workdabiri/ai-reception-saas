@@ -26,7 +26,7 @@ It deliberately **does not**:
 
 - approve any real model provider (none is integrated, and **real-provider production AI-assisted go-live remains NOT YET APPROVED**);
 - add any production code, prompt-builder change, or production taxonomy (`src/domains/ai-runtime/*` is intentionally untouched);
-- add any test or test helper (the enforcement tests are a separate, owner-gated future PR);
+- add any test or test helper (the *strategy text itself* adds none; the test-only enforcement proof of the current no-untrusted-content boundary landed separately as PR #131 / `f985219` — see the Update note in §0 — and still admits no untrusted content into any prompt);
 - approve route-level AI generation wiring (none is wired);
 - authorize env / API-key work (that remains blocked);
 - add any schema / migration / DB counter (none is added);
@@ -34,6 +34,8 @@ It deliberately **does not**:
 - approve **customer-message-in-prompt** (that remains **STOP** / future owner-gated — see §3 and §6).
 
 This document **recommends**; the owner **decides**. Any item that would let untrusted customer/conversation/message content into a prompt is a **STOP** / **future owner-gated** decision requiring explicit written owner approval and a dedicated PR (per `CLAUDE.md` → Decision authority and Remaining AI go-live gates).
+
+> **Update — test-only trust-boundary enforcement proof landed (PR #131 / commit `f985219`, 2026-06-20).** The strategy below now has a **test-only enforcement proof** for the **current approved (no-untrusted-content) scope**. PR #131 added a **test-only trust-boundary policy helper** (`__tests__/_helpers/ai-runtime-trust-boundary-policy.ts`) and a **dedicated trust-boundary suite** (`__tests__/domains/ai-runtime-trust-boundary.test.ts`). Together they prove, for the current scope: **TRUSTED / SEMI_TRUSTED / UNTRUSTED classification** of prompt inputs (§3); **default-deny** behavior for unclassified/ambiguous input; that **untrusted customer/conversation/widget-shaped input is blocked from prompt construction**; that **semi-trusted overreach is denied** (semi-trusted input cannot override system rules, create definitive §5.1 business claims, authorize sending, or expose internal/provenance fields); and that the existing **draft-only / human-review / no-auto-send / verified-context-only / no-leak** rules remain visible. The helper scope is held free of **provider SDKs, network, env / API-key, DB, send, and customer-read paths**. This is **test-only**: it added **no real provider, no provider SDK, no `process.env` / API-key read, no route-level generation wiring, no production prompt-builder change, no schema/migration, and no auto-send path**, and the **B-R7** cross-tenant isolation suite and the **B-R8** no-auto-send / human-approval lock remained green. The current **no-untrusted-content boundary is now TEST-PROVEN**. This document remains a spec-only strategy artifact (the *strategy text* adds no code or tests); the enforcement now lives in PR #131's test-only files. **This does not authorize untrusted customer text inside prompts**: **customer-message-in-prompt remains STOP / future owner-gated**, the **prompt-injection / untrusted-input gate remains OPEN**, and **real-provider production AI-assisted go-live remains NOT YET APPROVED**.
 
 ---
 
@@ -148,6 +150,7 @@ These existing, merged protections **reduce current prompt-injection risk** by k
 - **AST scope guard.** A TypeScript-AST static guard re-proves the no-send / no-real-provider / no-PII-read / no-provider-SDK boundary structurally (`__tests__/domains/ai-runtime-scope-guard-ast.test.ts`).
 - **Provider error-handling proof.** Operational provider failures fail closed through `ActionResult` and the metadata-only audit `FAILED` path (`docs/audits/AREA-B-provider-error-handling.md`; PR #126).
 - **Token / usage cost-guard proof.** The fail-closed cost-decision contract is test-proven for the fake-provider scope (`docs/audits/AREA-B-token-usage-cost-guard.md`; PR #128).
+- **Trust-boundary classification proof (PR #131 / `f985219`).** A **test-only** trust-boundary policy helper (`__tests__/_helpers/ai-runtime-trust-boundary-policy.ts`) and suite (`__tests__/domains/ai-runtime-trust-boundary.test.ts`) pin the §3 three-tier model for the current scope: TRUSTED / SEMI_TRUSTED / UNTRUSTED classification, **default-deny** for unclassified input, untrusted customer/conversation/widget-shaped input **blocked from prompt construction**, semi-trusted **overreach denied**, and the draft-only / human-review / no-auto-send / verified-context-only / no-leak rules kept visible — with the helper scope free of provider SDKs, network, env/API-key, DB, send, and customer-read paths. This makes the **current no-untrusted-content boundary TEST-PROVEN**; it does **not** introduce, approve, or test any untrusted customer content in a prompt.
 - **Branch protection — required checks.** `main` requires `Lint, Typecheck, Build, Test (20)` and `Tenant Isolation Integration (A-R1 real DB) (20)` (2026-06-19).
 
 > These protections meaningfully reduce **current** risk, but they do **not** close the prompt-injection strategy gate: future **untrusted customer content** is still **not approved**, and no strategy for isolating it had been written down until this document. The gate stays **OPEN**.
@@ -182,7 +185,7 @@ Until every item above is met under explicit owner approval, untrusted customer/
 The owner is asked to decide (Claude recommends; owner decides). None of these is executed by this document.
 
 - **Whether to adopt this trust model** (the three-tier TRUSTED / SEMI-TRUSTED / UNTRUSTED boundary in §3).
-- **Whether to authorize a separate test-only enforcement PR** (a trust-boundary classifier helper + suite pinning the §3 boundary and §4 invariants) — *without* any provider / env / route / schema / production-prompt-builder / auto-send change.
+- **Whether to authorize a separate test-only enforcement PR** (a trust-boundary classifier helper + suite pinning the §3 boundary and §4 invariants) — *without* any provider / env / route / schema / production-prompt-builder / auto-send change. **(Done — PR #131 / `f985219` landed this as test-only, proving the §3 classification, default-deny, untrusted-input blocking, and semi-trusted-overreach denial for the current no-untrusted-content scope. The gate stays OPEN; this proves the current boundary, it does not approve untrusted content in a prompt.)**
 - **Whether customer-message-in-prompt should remain STOP** (recommended: STOP — hold).
 - **What exact customer text, if any, may ever be included** (and under what summarization/extraction constraints), should the STOP posture ever be revisited.
 - **Whether untrusted content should be summarized / extracted before prompt inclusion** (e.g. structured extraction by a trusted step) **instead of inserted raw** — a safer-by-construction alternative to fencing raw untrusted text.
@@ -209,11 +212,11 @@ This document does **not** add any of:
 
 ## 9. Gate Status
 
-> **The prompt-injection / untrusted-input strategy gate remains OPEN after this document.**
-> **This document moves the gate from undefined to proposed strategy.**
-> **Closure requires a later owner-approved enforcement PR and checkpoint sync.**
+> **The prompt-injection / untrusted-input strategy gate remains OPEN after this document and after PR #131.**
+> **This document moved the gate from undefined to proposed strategy; PR #131 added a test-only enforcement proof of the current no-untrusted-content boundary.**
+> **Closure requires a later owner-approved enforcement PR (handling untrusted content under §6's full re-proof obligations) and a checkpoint sync.**
 
-This document closes **no** §6 go-live gate. Unlike the cost-guard and provider-error-handling gates (which had a freezable, test-provable decision contract and could be recorded CLOSED *for the current fake-provider scope*), the prompt-injection gate's subject — untrusted customer content in a prompt — is **out of scope / STOP**, so it **cannot** be closed now. Every other §6 gate remains as recorded in `docs/audits/AREA-B-closure-checkpoint.md`.
+This document closes **no** §6 go-live gate, and **neither does PR #131**. Unlike the cost-guard and provider-error-handling gates (which had a freezable, test-provable decision contract and could be recorded CLOSED *for the current fake-provider scope*), the prompt-injection gate's subject — untrusted customer content in a prompt — is **out of scope / STOP**, so it **cannot** be closed now. What PR #131 proves is the **current boundary**: that untrusted input is **classified and blocked from prompt construction** and that semi-trusted overreach is denied — i.e. the **no-untrusted-content boundary is TEST-PROVEN**, not that untrusted content is now safe to admit. The **prompt-injection / untrusted-input gate remains OPEN**, **customer-message-in-prompt remains STOP**, and every other §6 gate remains as recorded in `docs/audits/AREA-B-closure-checkpoint.md`.
 
 ---
 
