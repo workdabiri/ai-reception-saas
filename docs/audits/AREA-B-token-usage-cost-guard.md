@@ -9,14 +9,16 @@
 
 ## 0. Status
 
-> **Status: PROPOSED / TEST-PROVEN FOR CURRENT FAKE-PROVIDER SCOPE**
+> **Status: ADOPTED / TEST-PROVEN FOR CURRENT FAKE-PROVIDER SCOPE**
+
+> **Adopted — PR #128 / commit `6c829ad` / 2026-06-20.** This contract is now **adopted for the current fake-provider AI-runtime scope only**, and the `docs/audits/AREA-B-closure-checkpoint.md` §6 "Token / usage cost guard" gate is recorded **CLOSED for the current fake-provider AI-runtime scope** as of the same date. PR #128 landed the test-only pure cost-policy helper (`__tests__/_helpers/ai-runtime-cost-policy.ts`) and the dedicated cost-guard suite (`__tests__/domains/ai-runtime-cost-guard.test.ts`) that prove §3–§5 + §8 end-to-end, and this document was added alongside them. Adoption is **scoped to the current fake-provider boundary only**: it **closes no real-provider production use**; **no real provider is approved**; **no route-level generation is wired**; **no env/API-key work is authorized**; **no schema/migration or DB counters are added**; **no auto-send path exists**; **customer-message-in-prompt remains STOP / future owner-gated**; and **real-provider production AI-assisted go-live remains NOT YET APPROVED**. A real provider must build the deferred metering + persistence + enforcement on top of this contract and re-prove it under its own gate (§6) before go-live.
 
 This contract defines the vendor-neutral **token / usage cost-guard decision contract** for the AI runtime and is **test-proven for the current fake-provider scope** by `__tests__/domains/ai-runtime-cost-guard.test.ts` (using the test-only pure helper `__tests__/_helpers/ai-runtime-cost-policy.ts`). It is a **policy / specification** plus a **test proof**; it integrates **no real provider**, adds **no metering**, adds **no persistent counter**, and authorizes none.
 
 > **This closes nothing for real-provider production use.**
 > **It only test-proves the fake-provider-scope cost-guard decision contract.**
 
-This document is **PROPOSED**, not adopted. Adoption (recording the §6 "Token / usage cost guard" gate as CLOSED *for the current fake-provider scope only*) belongs to a **later docs-sync PR** after this PR merges — it is not claimed here.
+This document is **ADOPTED** for the current fake-provider scope (see the adoption note above). Adoption — recording the §6 "Token / usage cost guard" gate as CLOSED *for the current fake-provider scope only* — is now reflected in `docs/audits/AREA-B-closure-checkpoint.md` (PR #128 / `6c829ad`, 2026-06-20).
 
 It deliberately **does not**:
 
@@ -196,8 +198,8 @@ All tests run against synthetic numeric data and the deterministic fake provider
 > **This does not approve real-provider production AI-assisted go-live.**
 > **Real-provider metering, persistent counters, schema/migration, route-level enforcement, and billing/spend controls remain future gated work.**
 
-This document **PROPOSES** the cost-guard contract and **test-proves** it for the current fake-provider AI-runtime scope. It does not adopt it or close the §6 gate; that status change is recorded in a later docs-sync PR. Every other §6 go-live gate remains as recorded in `docs/audits/AREA-B-closure-checkpoint.md`.
+This document **ADOPTS** the cost-guard contract and **test-proves** it for the current fake-provider AI-runtime scope. As of **PR #128 / `6c829ad` (2026-06-20)** the §6 "Token / usage cost guard" gate is recorded **CLOSED for the current fake-provider scope only** in `docs/audits/AREA-B-closure-checkpoint.md`. Every other §6 go-live gate remains as recorded there.
 
 ---
 
-*AREA-B token / usage cost-guard contract — PROPOSED / TEST-PROVEN FOR CURRENT FAKE-PROVIDER SCOPE (2026-06-20). Defines the vendor-neutral budget concept (§3), the fail-closed decision posture (§4), the result mapping (§5), and the real-provider metering (§6) and future route-level enforcement (§7) requirements, proven by `__tests__/domains/ai-runtime-cost-guard.test.ts` over the pure helper `__tests__/_helpers/ai-runtime-cost-policy.ts`. Adds no real provider, no SDK, no metering, no persistent counter, no env/API-key read, no route wiring, no schema/migration, and no auto-send. Real-provider production AI-assisted go-live remains NOT YET APPROVED.*
+*AREA-B token / usage cost-guard contract — ADOPTED / TEST-PROVEN FOR CURRENT FAKE-PROVIDER SCOPE (2026-06-20). Defines the vendor-neutral budget concept (§3), the fail-closed decision posture (§4), the result mapping (§5), and the real-provider metering (§6) and future route-level enforcement (§7) requirements, proven by `__tests__/domains/ai-runtime-cost-guard.test.ts` over the pure helper `__tests__/_helpers/ai-runtime-cost-policy.ts`. Adds no real provider, no SDK, no metering, no persistent counter, no env/API-key read, no route wiring, no schema/migration, and no auto-send. Real-provider production AI-assisted go-live remains NOT YET APPROVED.*
