@@ -96,6 +96,9 @@ function mockDeps(): GenerateStubDraftHandlerDeps & {
   aiConfigService: {
     resolveAiPolicy: ReturnType<typeof vi.fn>;
   };
+  auditService: {
+    createAuditEvent: ReturnType<typeof vi.fn>;
+  };
 } {
   return {
     replyDraftRepository: {
@@ -130,6 +133,9 @@ function mockDeps(): GenerateStubDraftHandlerDeps & {
         aiMode: 'AI_ASSISTED',
         aiGenerationEnabled: true,
       })),
+    },
+    auditService: {
+      createAuditEvent: vi.fn().mockResolvedValue(ok({ id: 'audit-evt-id' })),
     },
   };
 }
@@ -491,6 +497,134 @@ describe('Generate Stub Draft Handler', () => {
   });
 
   // -------------------------------------------------------------------------
+  // General audit event (ai_draft.generated) — PII-safe, metadata-only
+  // -------------------------------------------------------------------------
+
+  it('emits one general ai_draft.generated AuditEvent on successful new-draft generation', async () => {
+    const d = mockDeps();
+    const h = createGenerateStubDraftHandler({ ...d, resolveTenantContext: okTenant() });
+    const r = await h(new Request('http://x', { method: 'POST' }), P);
+    expect(r.status).toBe(200);
+    expect(d.auditService.createAuditEvent).toHaveBeenCalledTimes(1);
+    expect(d.auditService.createAuditEvent).toHaveBeenCalledWith(
+      expect.objectContaining({
+        businessId: BIZ_ID,
+        actorType: 'USER',
+        actorUserId: USER_ID,
+        action: 'ai_draft.generated',
+        targetType: 'reply_draft',
+        targetId: DRAFT_ID,
+        result: 'SUCCESS',
+        metadata: expect.objectContaining({
+          conversationId: CONV_ID,
+          draftId: DRAFT_ID,
+          createdNewDraft: true,
+          draftStatus: 'PENDING_REVIEW',
+          source: 'SYSTEM_STUB',
+        }),
+      }),
+    );
+  });
+
+  it('emits a general ai_draft.generated AuditEvent when reusing an existing reviewable draft', async () => {
+    const d = mockDeps();
+    d.replyDraftRepository.generateOrReuseStubDraft.mockResolvedValue(ok({
+      created: false,
+      draft: {
+        id: DRAFT_ID,
+        conversationId: CONV_ID,
+        source: 'SYSTEM',
+        status: 'EDITED',
+        draftTextPreview: 'Edited text…',
+        createdAt: '2026-01-01T00:00:00.000Z',
+      },
+    }));
+    const h = createGenerateStubDraftHandler({ ...d, resolveTenantContext: okTenant() });
+    const r = await h(new Request('http://x', { method: 'POST' }), P);
+    expect(r.status).toBe(200);
+    expect(d.auditService.createAuditEvent).toHaveBeenCalledTimes(1);
+    expect(d.auditService.createAuditEvent).toHaveBeenCalledWith(
+      expect.objectContaining({
+        action: 'ai_draft.generated',
+        metadata: expect.objectContaining({
+          createdNewDraft: false,
+          draftStatus: 'EDITED',
+          source: 'SYSTEM_STUB',
+        }),
+      }),
+    );
+  });
+
+  it('audit metadata is PII-safe and metadata-only (fixed key allowlist; no draft/prompt/customer content)', async () => {
+    const d = mockDeps();
+    const h = createGenerateStubDraftHandler({ ...d, resolveTenantContext: okTenant() });
+    await h(new Request('http://x', { method: 'POST' }), P);
+    const arg = d.auditService.createAuditEvent.mock.calls[0][0];
+    // Metadata carries ONLY the safe allowlist — no content-bearing fields.
+    expect(Object.keys(arg.metadata).sort()).toEqual(
+      ['conversationId', 'createdNewDraft', 'draftId', 'draftStatus', 'source'].sort(),
+    );
+    // No draft text / stub text / prompt / provider / customer content anywhere.
+    const serialized = JSON.stringify(arg);
+    expect(serialized).not.toContain(STUB_DRAFT_TEXT);
+    expect(serialized).not.toContain('Thanks for your message');
+    for (const forbidden of ['draftText', 'originalText', 'draftTextPreview', 'prompt', 'transcript']) {
+      expect(arg.metadata).not.toHaveProperty(forbidden);
+    }
+  });
+
+  it('emits NO audit event when AI is disabled (MANUAL / fail-closed)', async () => {
+    const d = mockDeps();
+    d.aiConfigService.resolveAiPolicy.mockResolvedValue(ok({ businessId: BIZ_ID, aiMode: 'MANUAL', aiGenerationEnabled: false }));
+    const h = createGenerateStubDraftHandler({ ...d, resolveTenantContext: okTenant() });
+    await h(new Request('http://x', { method: 'POST' }), P);
+    expect(d.auditService.createAuditEvent).not.toHaveBeenCalled();
+  });
+
+  it('emits NO audit event when authz denies', async () => {
+    const d = mockDeps();
+    d.authzService.requirePermission.mockResolvedValue(ok({ allowed: false }));
+    const h = createGenerateStubDraftHandler({ ...d, resolveTenantContext: okTenant() });
+    await h(new Request('http://x', { method: 'POST' }), P);
+    expect(d.auditService.createAuditEvent).not.toHaveBeenCalled();
+  });
+
+  it('emits NO audit event when the conversation is not found', async () => {
+    const d = mockDeps();
+    d.conversationRepository.findConversationById.mockResolvedValue(ok(null));
+    const h = createGenerateStubDraftHandler({ ...d, resolveTenantContext: okTenant() });
+    await h(new Request('http://x', { method: 'POST' }), P);
+    expect(d.auditService.createAuditEvent).not.toHaveBeenCalled();
+  });
+
+  it('emits NO audit event when the draft repository fails', async () => {
+    const d = mockDeps();
+    d.replyDraftRepository.generateOrReuseStubDraft.mockResolvedValue(err('REPO_ERROR', 'Repository error'));
+    const h = createGenerateStubDraftHandler({ ...d, resolveTenantContext: okTenant() });
+    await h(new Request('http://x', { method: 'POST' }), P);
+    expect(d.auditService.createAuditEvent).not.toHaveBeenCalled();
+  });
+
+  it('still returns 200 when audit emission throws (best-effort; never breaks generation)', async () => {
+    const d = mockDeps();
+    d.auditService.createAuditEvent.mockRejectedValue(new Error('audit down'));
+    const h = createGenerateStubDraftHandler({ ...d, resolveTenantContext: okTenant() });
+    const r = await h(new Request('http://x', { method: 'POST' }), P);
+    expect(r.status).toBe(200);
+    const body = await r.json();
+    expect(body.data.created).toBe(true);
+  });
+
+  it('succeeds when no auditService is provided (optional dependency)', async () => {
+    const d = mockDeps();
+    const { auditService: _omit, ...rest } = d;
+    void _omit;
+    const h = createGenerateStubDraftHandler({ ...rest, resolveTenantContext: okTenant() });
+    const r = await h(new Request('http://x', { method: 'POST' }), P);
+    expect(r.status).toBe(200);
+  });
+
+  // -------------------------------------------------------------------------
   // Scope guards
   // -------------------------------------------------------------------------
 
@@ -541,6 +675,20 @@ describe('Generate Stub Draft Handler', () => {
     expect(handlerSrc).not.toMatch(/createMessage/);
     expect(handlerSrc).not.toMatch(/message\.create/);
     expect(handlerSrc).not.toMatch(/OUTBOUND/);
+  });
+
+  it('does not import or call B-R6 AiGenerationAuditLog services (general AuditEvent only)', async () => {
+    const handlerSrc = fs.readFileSync(
+      path.resolve('src/app/api/businesses/[businessId]/conversations/[conversationId]/reply-drafts/generate/handler.ts'),
+      'utf8',
+    );
+    // This route emits ONLY the general AuditEvent. It must NOT wire the B-R6
+    // AI-generation-attempt audit, and must not import the ai-runtime domain.
+    expect(handlerSrc).not.toMatch(/AiGenerationAuditLog/);
+    expect(handlerSrc).not.toMatch(/createAiGenerationAuditService/);
+    expect(handlerSrc).not.toMatch(/buildStartAiGenerationAuditInput/);
+    expect(handlerSrc).not.toMatch(/buildSuccessAiGenerationAuditInput/);
+    expect(handlerSrc).not.toMatch(/@\/domains\/ai-runtime/);
   });
 });
 
