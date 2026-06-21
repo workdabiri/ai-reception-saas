@@ -42,6 +42,7 @@ export async function POST(
       conversationRepository: deps.repositories.conversations,
       authzService: deps.services.authz,
       aiConfigService: deps.services.aiConfig,
+      auditService: deps.services.audit,
     });
     return handler(request, params);
   });

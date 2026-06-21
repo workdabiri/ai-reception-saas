@@ -29,6 +29,7 @@ import type { AuthzPermission } from '@/domains/authz/types';
 import type { ConversationRepository } from '@/domains/conversations/repository';
 import type { ReplyDraftRepository } from '@/domains/reply-drafts/repository';
 import type { AiConfigService } from '@/domains/ai-config/service';
+import type { AuditService } from '@/domains/audit/service';
 
 // ---------------------------------------------------------------------------
 // Constants
@@ -67,6 +68,7 @@ export interface GenerateStubDraftHandlerDeps {
   >;
   readonly authzService: Pick<AuthzService, 'requirePermission'>;
   readonly aiConfigService: Pick<AiConfigService, 'resolveAiPolicy'>;
+  readonly auditService?: Pick<AuditService, 'createAuditEvent'>;
   readonly resolveTenantContext?: (
     request: Request,
     scope?: TenantRequestScope,
@@ -115,7 +117,8 @@ async function requirePermission(
  * 6. Verify conversation exists and belongs to business
  * 7. Generate or reuse SYSTEM stub draft
  * 8. Reconcile Conversation.aiDraftStatus to READY
- * 9. Return result
+ * 9. Emit general audit event (best-effort, PII-safe, metadata-only)
+ * 10. Return result
  */
 export function createGenerateStubDraftHandler(
   deps: GenerateStubDraftHandlerDeps,
@@ -214,7 +217,40 @@ export function createGenerateStubDraftHandler(
       );
     }
 
-    // 9. Return result
+    // 9. Emit general audit event (best-effort, only on successful generation).
+    // PII-safe + metadata-only: ids, a boolean, and lifecycle status only —
+    // never draft text, prompt text, provider output, or customer content. A
+    // failure here must never break the successful generate response and never
+    // triggers any send/message path. This is the general AuditEvent for
+    // product/admin traceability — NOT the B-R6 generation-attempt audit (there
+    // is no real generation here; the draft is the deterministic SYSTEM stub).
+    if (deps.auditService) {
+      try {
+        await deps.auditService.createAuditEvent({
+          businessId,
+          actorType: 'USER',
+          actorUserId: contextResult.context.userId,
+          action: 'ai_draft.generated',
+          targetType: 'reply_draft',
+          targetId: draftResult.data.draft.id,
+          result: 'SUCCESS',
+          metadata: {
+            conversationId,
+            draftId: draftResult.data.draft.id,
+            createdNewDraft: draftResult.data.created,
+            draftStatus: draftResult.data.draft.status,
+            source: 'SYSTEM_STUB',
+          },
+        });
+      } catch {
+        // Best-effort audit — never fail the generate request.
+        console.error(
+          `[reply-draft-generate] Failed to emit audit event for draft ${draftResult.data.draft.id}`,
+        );
+      }
+    }
+
+    // 10. Return result
     return apiOk({
       businessId,
       conversationId,
