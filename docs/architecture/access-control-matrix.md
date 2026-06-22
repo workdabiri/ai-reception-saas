@@ -65,10 +65,10 @@ Examples:
 | ai_drafts.read | yes | yes | yes | no | future AI draft review |
 | ai_drafts.generate | yes | yes | yes | no | future; must not auto-send |
 | ai_drafts.approve | yes | yes | yes | no | audit-required; future |
-| knowledge.read | yes | yes | yes | yes | read verified business-context items |
+| knowledge.read | yes | yes | yes | yes | read verified business-context items; also gates GET ?status=VERIFIED and the default (no-status) list |
 | knowledge.create | yes | yes | yes | no | create DRAFT business-context items (not AI-eligible) |
-| knowledge.verify | yes | yes | no | no | audit-required; DRAFT -> VERIFIED (AI-eligible) |
-| knowledge.archive | yes | yes | no | no | audit-required; any status -> ARCHIVED |
+| knowledge.verify | yes | yes | no | no | audit-required; DRAFT -> VERIFIED (AI-eligible); also gates GET ?status=DRAFT list and single-item GET /knowledge/:itemId |
+| knowledge.archive | yes | yes | no | no | audit-required; any status -> ARCHIVED; also gates GET ?status=ARCHIVED list |
 | audit.read | yes | yes | no | no | sensitive |
 | settings.read | yes | yes | no | no | read configurable settings |
 | settings.update | yes | yes | no | no | audit-required |

@@ -32,7 +32,11 @@ import { apiOk, apiError } from '@/app/api/_shared/responses';
 import { getHttpStatusForError } from '@/app/api/_shared/errors';
 import { assertBusinessRouteMatchesTenant } from '@/app/api/_shared/tenant-route-guard';
 import type { KnowledgeService } from '@/domains/knowledge/service';
-import { BUSINESS_CONTEXT_ITEM_SOURCE_TYPE_VALUES } from '@/domains/knowledge/types';
+import {
+  BUSINESS_CONTEXT_ITEM_SOURCE_TYPE_VALUES,
+  isBusinessContextItemStatus,
+  type BusinessContextItemStatusValue,
+} from '@/domains/knowledge/types';
 import type { AuthzService } from '@/domains/authz/service';
 import type { AuthzPermission } from '@/domains/authz/types';
 import type { AuditService } from '@/domains/audit/service';
@@ -117,7 +121,12 @@ function knowledgeErrorResponse(error: {
 export interface KnowledgeHandlerDeps {
   readonly knowledgeService: Pick<
     KnowledgeService,
-    'createItem' | 'listVerifiedItems' | 'verifyItem' | 'archiveItem'
+    | 'createItem'
+    | 'listVerifiedItems'
+    | 'listItems'
+    | 'findItem'
+    | 'verifyItem'
+    | 'archiveItem'
   >;
   readonly authzService: Pick<AuthzService, 'requirePermission'>;
   readonly auditService: Pick<AuditService, 'createAuditEvent'>;
@@ -159,6 +168,28 @@ async function requireKnowledgePermission(
 }
 
 /**
+ * Maps a requested list `status` filter to the permission that may see it.
+ *
+ * VERIFIED (and the default, no-status case) is ordinary read data. DRAFT and
+ * ARCHIVED are review/retired queues, so they require the same elevated
+ * permissions that mutate them — keeping VIEWER/OPERATOR from seeing
+ * non-verified items unless their role already grants verify/archive.
+ */
+function permissionForListStatus(
+  status: BusinessContextItemStatusValue | undefined,
+): AuthzPermission {
+  switch (status) {
+    case 'DRAFT':
+      return 'knowledge.verify';
+    case 'ARCHIVED':
+      return 'knowledge.archive';
+    case 'VERIFIED':
+    default:
+      return 'knowledge.read';
+  }
+}
+
+/**
  * Fire-and-forget audit emitter.
  *
  * Logs audit events after successful mutations. Never fails the API response —
@@ -196,15 +227,21 @@ function emitAudit(
 /**
  * GET /api/businesses/:businessId/knowledge
  *
- * Lists VERIFIED business-context items for the route/tenant business. DRAFT
- * and ARCHIVED items are never returned (enforced by the domain). Supports
- * optional `category` and `limit` query filters.
+ * Lists business-context items for the route/tenant business. By default (no
+ * `status` query) returns VERIFIED-only items, preserving the original
+ * behavior. An explicit `?status=DRAFT|VERIFIED|ARCHIVED` filters by lifecycle
+ * status and is gated per status:
+ *   - VERIFIED (and the default) → knowledge.read
+ *   - DRAFT    → knowledge.verify
+ *   - ARCHIVED → knowledge.archive
+ * so VIEWER/OPERATOR cannot see non-verified review queues. Supports optional
+ * `category` and `limit` query filters.
  *
- * 1. Validate businessId param
+ * 1. Validate businessId param + `status` query (invalid status → 400)
  * 2. Resolve tenant context
  * 3. Assert businessId matches tenant
- * 4. Require knowledge.read permission
- * 5. Call knowledgeService.listVerifiedItems
+ * 4. Require the permission mapped to the requested status
+ * 5. Call the verified-only or status-filtered domain list method
  */
 export function createListKnowledgeHandler(
   deps: KnowledgeHandlerDeps,
@@ -219,6 +256,18 @@ export function createListKnowledgeHandler(
     if (!paramsResult.ok) return paramsResult.response;
 
     const { businessId } = paramsResult.data;
+
+    // Validate the optional status query as part of the params/query stage.
+    // An unknown status is a client error (400) and short-circuits before any
+    // tenant resolution, authz, or service call.
+    const statusParam = getSearchParam(request, 'status');
+    let status: BusinessContextItemStatusValue | undefined;
+    if (statusParam !== null) {
+      if (!isBusinessContextItemStatus(statusParam)) {
+        return apiError(INVALID_INPUT_CODE, INVALID_INPUT_MSG, 400);
+      }
+      status = statusParam;
+    }
 
     const resolve = deps.resolveTenantContext ?? resolveTenantRequestContext;
     const contextResult = await resolve(request, {
@@ -236,18 +285,86 @@ export function createListKnowledgeHandler(
     const authzErr = await requireKnowledgePermission(
       deps,
       contextResult.context,
-      'knowledge.read',
+      permissionForListStatus(status),
     );
     if (authzErr) return authzErr;
 
     const category = getSearchParam(request, 'category') ?? undefined;
-    const limit = parseIntegerQueryParam(getSearchParam(request, 'limit'));
+    const limitParam = parseIntegerQueryParam(getSearchParam(request, 'limit'));
+    const limit = limitParam
+      ? Math.min(Math.max(limitParam, 1), MAX_LIST_LIMIT)
+      : undefined;
 
-    const result = await deps.knowledgeService.listVerifiedItems({
+    // No status → keep the original verified-only path. An explicit status uses
+    // the status-filtered method (already authorized above for that status).
+    const result =
+      status === undefined
+        ? await deps.knowledgeService.listVerifiedItems({
+            businessId,
+            category,
+            limit,
+          })
+        : await deps.knowledgeService.listItems({
+            businessId,
+            status,
+            category,
+            limit,
+          });
+
+    if (!result.ok) return knowledgeErrorResponse(result.error);
+    return apiOk(result.data);
+  };
+}
+
+/**
+ * GET /api/businesses/:businessId/knowledge/:itemId
+ *
+ * Fetches a single business-context item by id, scoped to the route/tenant
+ * business. Because this can expose DRAFT or ARCHIVED context, it requires
+ * knowledge.verify (OWNER/ADMIN) for this PR — it is intentionally not a
+ * VIEWER/OPERATOR read. Cross-tenant or missing items return 404.
+ *
+ * 1. Validate businessId + itemId params
+ * 2. Resolve tenant context
+ * 3. Assert businessId matches tenant
+ * 4. Require knowledge.verify permission
+ * 5. Call knowledgeService.findItem
+ */
+export function createGetKnowledgeItemHandler(
+  deps: KnowledgeHandlerDeps,
+): (request: Request, params: unknown) => Promise<Response> {
+  return async (request: Request, params: unknown): Promise<Response> => {
+    const paramsResult = validateRouteParams(
+      params,
+      knowledgeItemParamsSchema,
+      INVALID_INPUT_CODE,
+      INVALID_INPUT_MSG,
+    );
+    if (!paramsResult.ok) return paramsResult.response;
+
+    const { businessId, itemId } = paramsResult.data;
+
+    const resolve = deps.resolveTenantContext ?? resolveTenantRequestContext;
+    const contextResult = await resolve(request, {
       businessId,
-      category,
-      limit: limit ? Math.min(Math.max(limit, 1), MAX_LIST_LIMIT) : undefined,
+      source: 'route-param',
     });
+    if (!contextResult.ok) return contextResult.response;
+
+    const mismatch = assertBusinessRouteMatchesTenant(
+      contextResult.context,
+      businessId,
+    );
+    if (mismatch) return mismatch;
+
+    const authzErr = await requireKnowledgePermission(
+      deps,
+      contextResult.context,
+      'knowledge.verify',
+    );
+    if (authzErr) return authzErr;
+
+    const result = await deps.knowledgeService.findItem({ businessId, itemId });
 
     if (!result.ok) return knowledgeErrorResponse(result.error);
     return apiOk(result.data);
@@ -474,12 +591,14 @@ export function createArchiveKnowledgeHandler(
 /** Creates all knowledge handlers */
 export function createKnowledgeHandlers(deps: KnowledgeHandlerDeps): {
   LIST: (request: Request, params: unknown) => Promise<Response>;
+  GET_ITEM: (request: Request, params: unknown) => Promise<Response>;
   CREATE: (request: Request, params: unknown) => Promise<Response>;
   VERIFY: (request: Request, params: unknown) => Promise<Response>;
   ARCHIVE: (request: Request, params: unknown) => Promise<Response>;
 } {
   return {
     LIST: createListKnowledgeHandler(deps),
+    GET_ITEM: createGetKnowledgeItemHandler(deps),
     CREATE: createPostKnowledgeHandler(deps),
     VERIFY: createVerifyKnowledgeHandler(deps),
     ARCHIVE: createArchiveKnowledgeHandler(deps),

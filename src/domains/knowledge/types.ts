@@ -166,3 +166,31 @@ export interface ListVerifiedContextItemsInput {
   /** Maximum number of items to return. */
   limit?: number;
 }
+
+/**
+ * Options for listing business-context items filtered by lifecycle status.
+ *
+ * SECURITY: `businessId` is the server-resolved tenant id and is ALWAYS applied.
+ * When `status` is omitted the read is fail-safe — only VERIFIED items are
+ * returned (never DRAFT/ARCHIVED by default). Visibility of DRAFT / ARCHIVED
+ * review queues is an authorization decision made by the caller (the API layer
+ * maps each status to the permission that may see it), not by this data type.
+ */
+export interface ListBusinessContextItemsInput {
+  businessId: string;
+  /** Optional lifecycle-status filter; defaults to VERIFIED when omitted. */
+  status?: BusinessContextItemStatusValue;
+  /** Optional category filter (always combined with businessId + status). */
+  category?: string;
+  /** Maximum number of items to return. */
+  limit?: number;
+}
+
+/**
+ * Input for fetching a single business-context item by id.
+ * `businessId` scopes the lookup; an item from another business is not found.
+ */
+export interface FindBusinessContextItemInput {
+  businessId: string;
+  itemId: string;
+}

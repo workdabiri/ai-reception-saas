@@ -11,10 +11,13 @@
 // ===========================================================================
 
 import { z } from 'zod';
-import { err } from '@/lib/result';
+import { ok, err } from '@/lib/result';
 import type { KnowledgeService } from './service';
 import type { KnowledgeRepository } from './repository';
-import { BUSINESS_CONTEXT_ITEM_SOURCE_TYPE_VALUES } from './types';
+import {
+  BUSINESS_CONTEXT_ITEM_SOURCE_TYPE_VALUES,
+  BUSINESS_CONTEXT_ITEM_STATUS_VALUES,
+} from './types';
 
 // ---------------------------------------------------------------------------
 // Dependency types
@@ -31,6 +34,8 @@ export interface KnowledgeServiceDeps {
 
 const INVALID_INPUT_CODE = 'INVALID_KNOWLEDGE_INPUT';
 const INVALID_INPUT_MSG = 'Invalid knowledge input';
+const NOT_FOUND_CODE = 'BUSINESS_CONTEXT_ITEM_NOT_FOUND';
+const NOT_FOUND_MSG = 'Business context item not found';
 
 /** Upper bound on a single context value (long text supported, but bounded). */
 const MAX_VALUE_LENGTH = 20_000;
@@ -56,6 +61,18 @@ const listVerifiedSchema = z.object({
   businessId: z.string().uuid(),
   category: z.string().trim().min(1).max(MAX_SHORT_TEXT_LENGTH).optional(),
   limit: z.number().int().positive().optional(),
+});
+
+const listItemsSchema = z.object({
+  businessId: z.string().uuid(),
+  status: z.enum(BUSINESS_CONTEXT_ITEM_STATUS_VALUES).optional(),
+  category: z.string().trim().min(1).max(MAX_SHORT_TEXT_LENGTH).optional(),
+  limit: z.number().int().positive().optional(),
+});
+
+const findItemSchema = z.object({
+  businessId: z.string().uuid(),
+  itemId: z.string().uuid(),
 });
 
 const verifyItemSchema = z.object({
@@ -96,6 +113,32 @@ export function createKnowledgeService(
       // The repository always pins status:VERIFIED + businessId; this passes
       // only the validated scope through.
       return repository.listVerifiedByBusiness(parsed.data);
+    },
+
+    async listItems(input) {
+      const parsed = listItemsSchema.safeParse(input);
+      if (!parsed.success) {
+        return err(INVALID_INPUT_CODE, INVALID_INPUT_MSG);
+      }
+      // businessId is always applied by the repository; status (if any) only
+      // narrows visibility. Authorization for each status lives in the API layer.
+      return repository.listByBusiness(parsed.data);
+    },
+
+    async findItem(input) {
+      const parsed = findItemSchema.safeParse(input);
+      if (!parsed.success) {
+        return err(INVALID_INPUT_CODE, INVALID_INPUT_MSG);
+      }
+      const found = await repository.findByBusinessAndId(
+        parsed.data.businessId,
+        parsed.data.itemId,
+      );
+      if (!found.ok) return found;
+      if (!found.data) {
+        return err(NOT_FOUND_CODE, NOT_FOUND_MSG);
+      }
+      return ok(found.data);
     },
 
     async verifyItem(input) {
