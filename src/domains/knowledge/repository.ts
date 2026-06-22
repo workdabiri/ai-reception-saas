@@ -25,6 +25,7 @@ import type {
   VerifyBusinessContextItemInput,
   ArchiveBusinessContextItemInput,
   ListVerifiedContextItemsInput,
+  ListBusinessContextItemsInput,
 } from './types';
 import { AI_ELIGIBLE_BUSINESS_CONTEXT_ITEM_STATUS } from './types';
 
@@ -134,6 +135,15 @@ export interface KnowledgeRepository {
   ): Promise<ActionResult<readonly BusinessContextItem[]>>;
 
   /**
+   * Lists items for a business filtered by lifecycle `status`. ALWAYS filters by
+   * `businessId`; when `status` is omitted it is fail-safe and pins
+   * `status: VERIFIED` (DRAFT/ARCHIVED are not returned by default).
+   */
+  listByBusiness(
+    input: ListBusinessContextItemsInput,
+  ): Promise<ActionResult<readonly BusinessContextItem[]>>;
+
+  /**
    * Finds an item by id, scoped strictly by `businessId`.
    * Returns null if not found or if it belongs to another business.
    */
@@ -202,6 +212,41 @@ const MAX_LIST_LIMIT = 500;
 export function createKnowledgeRepository(
   db: KnowledgeRepositoryDb,
 ): KnowledgeRepository {
+  // Shared list query, defined as a free function (no `this`) so it is safe to
+  // call from any method even if the method is destructured or passed around.
+  // `status` is fail-safe: it defaults to VERIFIED when the caller omits it.
+  async function listByBusinessImpl(
+    input: ListBusinessContextItemsInput,
+  ): Promise<ActionResult<readonly BusinessContextItem[]>> {
+    try {
+      const limit = Math.min(
+        input.limit && input.limit > 0 ? input.limit : DEFAULT_LIST_LIMIT,
+        MAX_LIST_LIMIT,
+      );
+
+      // Tenant scope is always enforced; `status` is fail-safe (VERIFIED) when
+      // the caller does not specify one, so an un-gated read never leaks
+      // DRAFT/ARCHIVED items. businessId is never widened by the caller.
+      const where: ListContextItemsWhere = {
+        businessId: input.businessId,
+        status: input.status ?? AI_ELIGIBLE_BUSINESS_CONTEXT_ITEM_STATUS,
+      };
+      if (input.category) {
+        where.category = input.category;
+      }
+
+      const records = await db.businessContextItem.findMany({
+        where,
+        orderBy: { updatedAt: 'desc' },
+        take: limit,
+      });
+
+      return ok(records.map(mapBusinessContextItemRecord));
+    } catch {
+      return err(REPO_ERROR_CODE, REPO_ERROR_MSG);
+    }
+  }
+
   return {
     async createItem(input) {
       try {
@@ -228,32 +273,17 @@ export function createKnowledgeRepository(
     },
 
     async listVerifiedByBusiness(input) {
-      try {
-        const limit = Math.min(
-          input.limit && input.limit > 0 ? input.limit : DEFAULT_LIST_LIMIT,
-          MAX_LIST_LIMIT,
-        );
+      // Verified-only read: delegate to the shared free function with status
+      // pinned to VERIFIED so DRAFT and ARCHIVED items can never be returned
+      // through this method. Uses no `this` binding.
+      return listByBusinessImpl({
+        ...input,
+        status: AI_ELIGIBLE_BUSINESS_CONTEXT_ITEM_STATUS,
+      });
+    },
 
-        // Tenant + verification scope is enforced here and cannot be widened by
-        // the caller: businessId and status:VERIFIED are always present.
-        const where: ListContextItemsWhere = {
-          businessId: input.businessId,
-          status: AI_ELIGIBLE_BUSINESS_CONTEXT_ITEM_STATUS,
-        };
-        if (input.category) {
-          where.category = input.category;
-        }
-
-        const records = await db.businessContextItem.findMany({
-          where,
-          orderBy: { updatedAt: 'desc' },
-          take: limit,
-        });
-
-        return ok(records.map(mapBusinessContextItemRecord));
-      } catch {
-        return err(REPO_ERROR_CODE, REPO_ERROR_MSG);
-      }
+    async listByBusiness(input) {
+      return listByBusinessImpl(input);
     },
 
     async findByBusinessAndId(businessId, itemId) {

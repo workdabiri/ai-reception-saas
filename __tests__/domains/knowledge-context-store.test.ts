@@ -355,6 +355,85 @@ describe('Knowledge repository — listVerifiedByBusiness', () => {
 });
 
 // ===========================================================================
+// Repository — listByBusiness (status-filtered visibility)
+// ===========================================================================
+
+describe('Knowledge repository — listByBusiness', () => {
+  it('defaults to VERIFIED when no status is given (fail-safe)', async () => {
+    const findMany = vi.fn().mockResolvedValue([]);
+    const repo = createKnowledgeRepository({
+      businessContextItem: { findMany } as never,
+    } as unknown as KnowledgeRepositoryDb);
+
+    await repo.listByBusiness({ businessId: BIZ_A });
+
+    const arg = findMany.mock.calls[0][0];
+    expect(arg.where.businessId).toBe(BIZ_A);
+    expect(arg.where.status).toBe('VERIFIED');
+  });
+
+  it('filters by the requested status, always pinned to businessId', async () => {
+    const findMany = vi.fn().mockResolvedValue([]);
+    const repo = createKnowledgeRepository({
+      businessContextItem: { findMany } as never,
+    } as unknown as KnowledgeRepositoryDb);
+
+    await repo.listByBusiness({ businessId: BIZ_A, status: 'DRAFT' });
+
+    const arg = findMany.mock.calls[0][0];
+    expect(arg.where).toEqual({ businessId: BIZ_A, status: 'DRAFT' });
+  });
+
+  it('returns only DRAFT items for the business when status:DRAFT', async () => {
+    const db = createFakeDb();
+    const repo = createKnowledgeRepository(db);
+
+    const verified = await repo.createItem(validCreateInput({ key: 'verified' }));
+    await repo.createItem(validCreateInput({ key: 'draft' }));
+    if (!verified.ok) throw new Error('setup');
+    await repo.verifyItem({
+      businessId: BIZ_A,
+      itemId: verified.data.id,
+      verifiedByUserId: VERIFIER,
+    });
+
+    const res = await repo.listByBusiness({ businessId: BIZ_A, status: 'DRAFT' });
+
+    expect(res.ok).toBe(true);
+    if (res.ok) {
+      expect(res.data).toHaveLength(1);
+      expect(res.data[0].key).toBe('draft');
+      expect(res.data[0].status).toBe('DRAFT');
+    }
+  });
+
+  it('never returns another business\'s items when filtering by status', async () => {
+    const db = createFakeDb();
+    const repo = createKnowledgeRepository(db);
+
+    await repo.createItem(validCreateInput({ businessId: BIZ_B, key: 'b-draft' }));
+
+    const res = await repo.listByBusiness({ businessId: BIZ_A, status: 'DRAFT' });
+
+    expect(res.ok).toBe(true);
+    if (res.ok) expect(res.data).toEqual([]);
+  });
+
+  it('returns an ActionResult error when the DB query throws', async () => {
+    const db = createFakeDb();
+    vi.spyOn(db.businessContextItem, 'findMany').mockRejectedValueOnce(
+      new Error('db down'),
+    );
+    const repo = createKnowledgeRepository(db);
+
+    const res = await repo.listByBusiness({ businessId: BIZ_A, status: 'DRAFT' });
+
+    expect(res.ok).toBe(false);
+    if (!res.ok) expect(res.error.code).toBe('KNOWLEDGE_REPOSITORY_ERROR');
+  });
+});
+
+// ===========================================================================
 // Repository — findByBusinessAndId (scope guard)
 // ===========================================================================
 
@@ -577,6 +656,7 @@ describe('Knowledge repository — archiveItem', () => {
 type MockedKnowledgeRepository = KnowledgeRepository & {
   createItem: ReturnType<typeof vi.fn>;
   listVerifiedByBusiness: ReturnType<typeof vi.fn>;
+  listByBusiness: ReturnType<typeof vi.fn>;
   findByBusinessAndId: ReturnType<typeof vi.fn>;
   verifyItem: ReturnType<typeof vi.fn>;
   archiveItem: ReturnType<typeof vi.fn>;
@@ -586,6 +666,7 @@ function mockRepo(): MockedKnowledgeRepository {
   return {
     createItem: vi.fn(async (input) => ({ ok: true, data: { ...input } })),
     listVerifiedByBusiness: vi.fn(async () => ({ ok: true, data: [] })),
+    listByBusiness: vi.fn(async () => ({ ok: true, data: [] })),
     findByBusinessAndId: vi.fn(async () => ({ ok: true, data: null })),
     verifyItem: vi.fn(async () => ({ ok: true, data: {} })),
     archiveItem: vi.fn(async () => ({ ok: true, data: {} })),
@@ -678,6 +759,110 @@ describe('Knowledge service — listVerifiedItems', () => {
 
     expect(res.ok).toBe(false);
     expect(repo.listVerifiedByBusiness).not.toHaveBeenCalled();
+  });
+});
+
+describe('Knowledge service — listItems', () => {
+  it('forwards the validated status-filtered scope to repository.listByBusiness', async () => {
+    const repo = mockRepo();
+    const svc = createKnowledgeService({ repository: repo });
+
+    const res = await svc.listItems({ businessId: BIZ_A, status: 'DRAFT' });
+
+    expect(res.ok).toBe(true);
+    expect(repo.listByBusiness).toHaveBeenCalledWith({
+      businessId: BIZ_A,
+      status: 'DRAFT',
+    });
+    // Does NOT route through the verified-only method.
+    expect(repo.listVerifiedByBusiness).not.toHaveBeenCalled();
+  });
+
+  it('allows an omitted status (repo applies the fail-safe VERIFIED default)', async () => {
+    const repo = mockRepo();
+    const svc = createKnowledgeService({ repository: repo });
+
+    const res = await svc.listItems({ businessId: BIZ_A });
+
+    expect(res.ok).toBe(true);
+    expect(repo.listByBusiness).toHaveBeenCalledWith({ businessId: BIZ_A });
+  });
+
+  it('rejects an unknown status value', async () => {
+    const repo = mockRepo();
+    const svc = createKnowledgeService({ repository: repo });
+
+    const res = await svc.listItems({
+      businessId: BIZ_A,
+      status: 'PUBLISHED' as never,
+    });
+
+    expect(res.ok).toBe(false);
+    if (!res.ok) expect(res.error.code).toBe('INVALID_KNOWLEDGE_INPUT');
+    expect(repo.listByBusiness).not.toHaveBeenCalled();
+  });
+
+  it('rejects a non-UUID businessId', async () => {
+    const repo = mockRepo();
+    const svc = createKnowledgeService({ repository: repo });
+
+    const res = await svc.listItems({ businessId: 'nope', status: 'DRAFT' });
+
+    expect(res.ok).toBe(false);
+    expect(repo.listByBusiness).not.toHaveBeenCalled();
+  });
+});
+
+describe('Knowledge service — findItem', () => {
+  it('returns the item when found for the owning business', async () => {
+    const repo = mockRepo();
+    const itemId = fakeUuid(11);
+    repo.findByBusinessAndId.mockResolvedValueOnce({
+      ok: true,
+      data: { id: itemId, businessId: BIZ_A, status: 'DRAFT' },
+    });
+    const svc = createKnowledgeService({ repository: repo });
+
+    const res = await svc.findItem({ businessId: BIZ_A, itemId });
+
+    expect(res.ok).toBe(true);
+    if (res.ok) expect(res.data.id).toBe(itemId);
+    expect(repo.findByBusinessAndId).toHaveBeenCalledWith(BIZ_A, itemId);
+  });
+
+  it('maps a not-found (null) lookup to BUSINESS_CONTEXT_ITEM_NOT_FOUND', async () => {
+    const repo = mockRepo(); // findByBusinessAndId defaults to ok(null)
+    const svc = createKnowledgeService({ repository: repo });
+
+    const res = await svc.findItem({ businessId: BIZ_A, itemId: fakeUuid(12) });
+
+    expect(res.ok).toBe(false);
+    if (!res.ok) expect(res.error.code).toBe('BUSINESS_CONTEXT_ITEM_NOT_FOUND');
+  });
+
+  it('rejects an invalid itemId without calling the repo', async () => {
+    const repo = mockRepo();
+    const svc = createKnowledgeService({ repository: repo });
+
+    const res = await svc.findItem({ businessId: BIZ_A, itemId: 'bad' });
+
+    expect(res.ok).toBe(false);
+    if (!res.ok) expect(res.error.code).toBe('INVALID_KNOWLEDGE_INPUT');
+    expect(repo.findByBusinessAndId).not.toHaveBeenCalled();
+  });
+
+  it('propagates a repository error result', async () => {
+    const repo = mockRepo();
+    repo.findByBusinessAndId.mockResolvedValueOnce({
+      ok: false,
+      error: { code: 'KNOWLEDGE_REPOSITORY_ERROR', message: 'boom' },
+    });
+    const svc = createKnowledgeService({ repository: repo });
+
+    const res = await svc.findItem({ businessId: BIZ_A, itemId: fakeUuid(13) });
+
+    expect(res.ok).toBe(false);
+    if (!res.ok) expect(res.error.code).toBe('KNOWLEDGE_REPOSITORY_ERROR');
   });
 });
 

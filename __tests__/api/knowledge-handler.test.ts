@@ -19,6 +19,7 @@ import path from 'node:path';
 
 import {
   createListKnowledgeHandler,
+  createGetKnowledgeItemHandler,
   createPostKnowledgeHandler,
   createVerifyKnowledgeHandler,
   createArchiveKnowledgeHandler,
@@ -113,6 +114,8 @@ function makeDeps(
     knowledgeService: {
       createItem: vi.fn().mockResolvedValue(ok(DRAFT_ITEM)),
       listVerifiedItems: vi.fn().mockResolvedValue(ok([VERIFIED_ITEM])),
+      listItems: vi.fn().mockResolvedValue(ok([DRAFT_ITEM])),
+      findItem: vi.fn().mockResolvedValue(ok(DRAFT_ITEM)),
       verifyItem: vi.fn().mockResolvedValue(ok(VERIFIED_ITEM)),
       archiveItem: vi.fn().mockResolvedValue(ok(ARCHIVED_ITEM)),
     },
@@ -193,6 +196,188 @@ describe('GET /knowledge — verified-only listing', () => {
     expect(deps.knowledgeService.listVerifiedItems).toHaveBeenCalledWith(
       expect.objectContaining({ businessId: BUSINESS_ID, category: 'hours' }),
     );
+  });
+});
+
+// ===========================================================================
+// 1b. GET /knowledge?status=... — status-filtered visibility + RBAC
+// ===========================================================================
+
+describe('GET /knowledge?status=... — status-filtered visibility', () => {
+  it('no status still returns VERIFIED-only via listVerifiedItems (knowledge.read)', async () => {
+    const deps = makeDeps();
+    const r = await createListKnowledgeHandler(deps)(new Request('http://x/api'), {
+      businessId: BUSINESS_ID,
+    });
+    expect(r.status).toBe(200);
+    expect(deps.knowledgeService.listVerifiedItems).toHaveBeenCalledTimes(1);
+    expect(deps.knowledgeService.listItems).not.toHaveBeenCalled();
+  });
+
+  it('status=VERIFIED uses listItems with VERIFIED and requires knowledge.read', async () => {
+    const deps = realAuthzDeps('VIEWER'); // VIEWER has knowledge.read only
+    const r = await createListKnowledgeHandler(deps)(
+      new Request('http://x/api?status=VERIFIED'),
+      { businessId: BUSINESS_ID },
+    );
+    expect(r.status).toBe(200);
+    expect(deps.knowledgeService.listItems).toHaveBeenCalledWith(
+      expect.objectContaining({ businessId: BUSINESS_ID, status: 'VERIFIED' }),
+    );
+  });
+
+  it('status=DRAFT requires knowledge.verify (OWNER allowed)', async () => {
+    const deps = realAuthzDeps('OWNER');
+    const r = await createListKnowledgeHandler(deps)(
+      new Request('http://x/api?status=DRAFT'),
+      { businessId: BUSINESS_ID },
+    );
+    expect(r.status).toBe(200);
+    expect(deps.knowledgeService.listItems).toHaveBeenCalledWith(
+      expect.objectContaining({ businessId: BUSINESS_ID, status: 'DRAFT' }),
+    );
+  });
+
+  it('status=ARCHIVED requires knowledge.archive (ADMIN allowed)', async () => {
+    const deps = realAuthzDeps('ADMIN');
+    const r = await createListKnowledgeHandler(deps)(
+      new Request('http://x/api?status=ARCHIVED'),
+      { businessId: BUSINESS_ID },
+    );
+    expect(r.status).toBe(200);
+    expect(deps.knowledgeService.listItems).toHaveBeenCalledWith(
+      expect.objectContaining({ businessId: BUSINESS_ID, status: 'ARCHIVED' }),
+    );
+  });
+
+  it('OPERATOR cannot list DRAFT or ARCHIVED (403, no service call)', async () => {
+    for (const status of ['DRAFT', 'ARCHIVED'] as const) {
+      const deps = realAuthzDeps('OPERATOR');
+      const r = await createListKnowledgeHandler(deps)(
+        new Request(`http://x/api?status=${status}`),
+        { businessId: BUSINESS_ID },
+      );
+      expect(r.status).toBe(403);
+      expect((await bodyOf(r)).error?.code).toBe('ACCESS_DENIED');
+      expect(deps.knowledgeService.listItems).not.toHaveBeenCalled();
+    }
+  });
+
+  it('VIEWER cannot list DRAFT or ARCHIVED (403, no service call)', async () => {
+    for (const status of ['DRAFT', 'ARCHIVED'] as const) {
+      const deps = realAuthzDeps('VIEWER');
+      const r = await createListKnowledgeHandler(deps)(
+        new Request(`http://x/api?status=${status}`),
+        { businessId: BUSINESS_ID },
+      );
+      expect(r.status).toBe(403);
+      expect((await bodyOf(r)).error?.code).toBe('ACCESS_DENIED');
+      expect(deps.knowledgeService.listItems).not.toHaveBeenCalled();
+    }
+  });
+
+  it('an invalid status query returns 400 before any tenant/authz/service work', async () => {
+    const deps = makeDeps();
+    const r = await createListKnowledgeHandler(deps)(
+      new Request('http://x/api?status=PUBLISHED'),
+      { businessId: BUSINESS_ID },
+    );
+    expect(r.status).toBe(400);
+    expect((await bodyOf(r)).error?.code).toBe('INVALID_KNOWLEDGE_INPUT');
+    expect(deps.knowledgeService.listItems).not.toHaveBeenCalled();
+    expect(deps.knowledgeService.listVerifiedItems).not.toHaveBeenCalled();
+    expect(deps.authzService.requirePermission).not.toHaveBeenCalled();
+  });
+
+  it('route/tenant mismatch returns 403 and does not call the service', async () => {
+    const deps = makeDeps(); // context resolves to BUSINESS_ID
+    const r = await createListKnowledgeHandler(deps)(
+      new Request('http://x/api?status=DRAFT'),
+      { businessId: OTHER_BUSINESS_ID },
+    );
+    expect(r.status).toBe(403);
+    expect((await bodyOf(r)).error?.code).toBe('TENANT_ACCESS_DENIED');
+    expect(deps.knowledgeService.listItems).not.toHaveBeenCalled();
+  });
+});
+
+// ===========================================================================
+// 1c. GET /knowledge/:itemId — single-item read (knowledge.verify gated)
+// ===========================================================================
+
+describe('GET /knowledge/:itemId — single-item read', () => {
+  it('returns the item and requires knowledge.verify (OWNER/ADMIN allowed)', async () => {
+    for (const role of ['OWNER', 'ADMIN'] as const) {
+      const deps = realAuthzDeps(role);
+      const r = await createGetKnowledgeItemHandler(deps)(new Request('http://x'), {
+        businessId: BUSINESS_ID,
+        itemId: ITEM_ID,
+      });
+      expect(r.status).toBe(200);
+      expect(deps.knowledgeService.findItem).toHaveBeenCalledWith({
+        businessId: BUSINESS_ID,
+        itemId: ITEM_ID,
+      });
+    }
+  });
+
+  it('OPERATOR and VIEWER are denied (403, no service call)', async () => {
+    for (const role of ['OPERATOR', 'VIEWER'] as const) {
+      const deps = realAuthzDeps(role);
+      const r = await createGetKnowledgeItemHandler(deps)(new Request('http://x'), {
+        businessId: BUSINESS_ID,
+        itemId: ITEM_ID,
+      });
+      expect(r.status).toBe(403);
+      expect((await bodyOf(r)).error?.code).toBe('ACCESS_DENIED');
+      expect(deps.knowledgeService.findItem).not.toHaveBeenCalled();
+    }
+  });
+
+  it('route/tenant mismatch returns 403 and does not call the service', async () => {
+    const deps = makeDeps();
+    const r = await createGetKnowledgeItemHandler(deps)(new Request('http://x'), {
+      businessId: OTHER_BUSINESS_ID,
+      itemId: ITEM_ID,
+    });
+    expect(r.status).toBe(403);
+    expect((await bodyOf(r)).error?.code).toBe('TENANT_ACCESS_DENIED');
+    expect(deps.knowledgeService.findItem).not.toHaveBeenCalled();
+  });
+
+  it('a non-UUID itemId returns 400', async () => {
+    const deps = makeDeps();
+    const r = await createGetKnowledgeItemHandler(deps)(new Request('http://x'), {
+      businessId: BUSINESS_ID,
+      itemId: 'not-a-uuid',
+    });
+    expect(r.status).toBe(400);
+    expect(deps.knowledgeService.findItem).not.toHaveBeenCalled();
+  });
+
+  it('a not-found item surfaces 404 from the domain', async () => {
+    const deps = makeDeps({
+      knowledgeService: {
+        createItem: vi.fn().mockResolvedValue(ok(DRAFT_ITEM)),
+        listVerifiedItems: vi.fn().mockResolvedValue(ok([VERIFIED_ITEM])),
+        listItems: vi.fn().mockResolvedValue(ok([DRAFT_ITEM])),
+        findItem: vi.fn().mockResolvedValue({
+          ok: false,
+          error: {
+            code: 'BUSINESS_CONTEXT_ITEM_NOT_FOUND',
+            message: 'Business context item not found',
+          },
+        }),
+        verifyItem: vi.fn().mockResolvedValue(ok(VERIFIED_ITEM)),
+        archiveItem: vi.fn().mockResolvedValue(ok(ARCHIVED_ITEM)),
+      },
+    });
+    const r = await createGetKnowledgeItemHandler(deps)(new Request('http://x'), {
+      businessId: BUSINESS_ID,
+      itemId: ITEM_ID,
+    });
+    expect(r.status).toBe(404);
+    expect((await bodyOf(r)).error?.code).toBe('BUSINESS_CONTEXT_ITEM_NOT_FOUND');
   });
 });
 
@@ -477,6 +662,7 @@ describe('scope guard — knowledge API introduces no AI/send wiring', () => {
   const FILES = [
     'src/app/api/businesses/[businessId]/knowledge/handler.ts',
     'src/app/api/businesses/[businessId]/knowledge/route.ts',
+    'src/app/api/businesses/[businessId]/knowledge/[itemId]/route.ts',
     'src/app/api/businesses/[businessId]/knowledge/[itemId]/verify/route.ts',
     'src/app/api/businesses/[businessId]/knowledge/[itemId]/archive/route.ts',
   ];
@@ -512,9 +698,10 @@ describe('scope guard — knowledge API introduces no AI/send wiring', () => {
 // ===========================================================================
 
 describe('createKnowledgeHandlers factory', () => {
-  it('exposes LIST/CREATE/VERIFY/ARCHIVE callables', () => {
+  it('exposes LIST/GET_ITEM/CREATE/VERIFY/ARCHIVE callables', () => {
     const handlers = createKnowledgeHandlers(makeDeps());
     expect(typeof handlers.LIST).toBe('function');
+    expect(typeof handlers.GET_ITEM).toBe('function');
     expect(typeof handlers.CREATE).toBe('function');
     expect(typeof handlers.VERIFY).toBe('function');
     expect(typeof handlers.ARCHIVE).toBe('function');
