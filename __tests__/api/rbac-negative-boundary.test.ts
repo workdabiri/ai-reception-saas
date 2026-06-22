@@ -226,7 +226,13 @@ describe('A-R4 catalog deny-set — audit-aligned boundaries', () => {
 
   it('VIEWER retains only read permissions', () => {
     expect([...ROLE_PERMISSIONS.VIEWER].sort()).toEqual(
-      ['business.read', 'conversations.read', 'customers.read', 'messages.read'].sort(),
+      [
+        'business.read',
+        'conversations.read',
+        'customers.read',
+        'messages.read',
+        'knowledge.read',
+      ].sort(),
     );
   });
 
