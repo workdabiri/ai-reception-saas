@@ -21,11 +21,12 @@ Do **not** describe the product as "Private Alpha ready" or "real-provider AI re
 
 ## Remaining AI go-live gates
 
-Each of these is a **hard future gate** that must pass its own review before real customer data may enter an AI prompt in production. None is satisfied today; none is authorized by routine work.
+Each of these is a **hard future gate** that must pass its own review before real customer data may enter an AI prompt in production. None of the gates below is satisfied today; none is authorized by routine work.
+
+**Already closed (test/CI-only, not a remaining gate):** Real-DB AI-isolation CI gate — the live-Postgres AI-isolation suite (`__tests__/integration/ai-runtime-tenant-isolation.integration.test.ts`) plus a step in the `tenant-isolation-integration` CI job shipped in **PR #111 / `7f24caf`** (2026-06-17) and is branch-protection-required as of 2026-06-19; parity with the Area A A-R1.1 gate. It is `RUN_INTEGRATION_TESTS`-gated (skipped by normal `pnpm test`). This is test/CI-only and does **not** change the go-live verdict. See `docs/audits/AREA-B-closure-checkpoint.md`.
 
 - Real-provider adapter review (a real SDK behind the existing `AiProvider` interface; fake provider stays the test default).
 - Route-level generation wiring review (assembly → prompt → provider → audit → draft, only when `aiMode = AI_ASSISTED`).
-- Real-DB AI-isolation CI gate (a live-Postgres AI-isolation suite wired into `RUN_INTEGRATION_TESTS`, parity with the Area A gate).
 - PII / data-minimization allowlist (explicit field allowlist for anything entering a prompt, proven by test).
 - Cost / rate-limit / observability (per-business spend limits, provider error handling, AI-usage metrics/alerting).
 - Staging validation (full end-to-end exercise against realistic non-production data, default-off verified).
