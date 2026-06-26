@@ -20,7 +20,7 @@ Anyone considering integrating a real model provider, wiring route-level AI gene
 6. Audit wired to the real route — B-R6 audit invoked on every real generation (start + success/failure), not only in tests.
 7. PII / data-minimization allowlist — explicit field allowlist for prompt inputs, proven by test to exclude unneeded PII.
 8. Prompt-injection / untrusted-message strategy — defined before any customer/conversation/message content enters a prompt.
-9. Real-DB AI-isolation CI gate — live-Postgres AI-isolation suite in `RUN_INTEGRATION_TESTS`, required by branch protection (parity with A-R1.1).
+9. Real-DB AI-isolation CI gate — live-Postgres AI-isolation suite in `RUN_INTEGRATION_TESTS`, required by branch protection (parity with A-R1.1). **ALREADY CLOSED** (PR #111 / `7f24caf`, branch-protection-required 2026-06-19); confirm still green at go-live.
 10. Human-approval enforcement — generate → review → edit → approve proven end-to-end; no draft reaches a customer without explicit approval.
 11. Staging validation + kill-switch/rollback drill — default-off verified; revert-to-`MANUAL` disables generation business-wide without a deploy.
 12. Production rollout approval — explicit owner sign-off recorded.
@@ -37,8 +37,8 @@ Anyone considering integrating a real model provider, wiring route-level AI gene
 pnpm typecheck
 pnpm test
 pnpm lint
-# plus, once a real-DB AI-isolation suite exists:
-RUN_INTEGRATION_TESTS=true pnpm exec vitest run <ai-isolation-integration-suite>
+# plus the real-DB AI-isolation suite (exists since PR #111; needs a local Postgres):
+RUN_INTEGRATION_TESTS=true pnpm exec vitest run __tests__/integration/ai-runtime-tenant-isolation.integration.test.ts
 ```
 
 ## Stop conditions
