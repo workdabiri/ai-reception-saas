@@ -4,7 +4,7 @@
 
 Whenever anyone proposes adopting an external Claude **plugin, MCP server, connector, automation platform, or agent/skill** for this repo — or asks "can we use _X_ here?" This playbook classifies a tool and tells you whether it is usable now, later, never, or out of scope. It is a **policy document only**: reading or following it activates nothing. Adoption itself is always a separate, owner-approved PR (see [Adoption procedure](#adoption-procedure)).
 
-This repo is the **backend/API** in its security-hardening phase (Area A CLOSED; Area B AI-runtime closed for the fake-provider/provenance/isolation/no-auto-send scope only; no real provider; no send path). The stance below reflects that phase. When the phase changes, the stance is re-reviewed in a PR — not improvised.
+This repo is the **backend/API** in its security-hardening phase (Area A CLOSED; Area B AI-runtime closed for the fake-provider/provenance/isolation/no-auto-send scope only; no real provider; no AI/auto-send path and no external-channel delivery — a human-gated operator "Send Approved Draft" path that writes an internal `Message` does exist). The stance below reflects that phase. When the phase changes, the stance is re-reviewed in a PR — not improvised.
 
 ## Required inputs
 

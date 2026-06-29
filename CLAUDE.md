@@ -14,7 +14,9 @@ The `docs/audits/*-closure-checkpoint.md` files are the **authoritative status r
 - **Area B (AI runtime): B-R1 through B-R8 CLOSED.** The B-R8 dedicated no-auto-send / human-approval lock was merged as **PR #106 / commit `7f4eee0`**. The foundational AI-runtime / provenance / tenant-isolation / no-auto-send boundary is **closed for the implemented fake-provider / provenance / isolation / no-auto-send scope only**.
 - **Real-provider production AI-assisted go-live: NOT YET APPROVED.** No real model provider is integrated; there is no real-provider SDK in `package.json`, no API-key/env wiring, and no network path. All AI generation runs against a **deterministic fake provider** over synthetic/test data.
 - **Route-level real AI generation: NOT APPROVED / not wired.** The reply-draft `generate` route returns a deterministic SYSTEM stub (it does not call an LLM) and is gated by per-business `aiMode` (default `MANUAL`, fail-closed).
-- **Level 3 / autonomous AI / auto-send: OUT OF SCOPE and BLOCKED.** No auto-pilot mode exists and no send path exists.
+- **Operator "Send Approved Draft": SHIPPED — human-gated, internal-only.** An operator holding `ai_drafts.send` can send an **APPROVED** reply draft via `POST /api/businesses/:businessId/conversations/:conversationId/reply-drafts/:draftId/send`. In one DB transaction it marks the draft `SENT`, creates exactly one **internal OUTBOUND OPERATOR `Message`**, and links `sentMessageId` (atomic — no "SENT without a message" state); it emits **content-free** `message.created` + `ai_draft.sent` audits. It is explicit-operator-triggered only and does **not** call any LLM/provider/webhook/WhatsApp/email/SMS/external channel.
+- **Level 3 / autonomous AI / auto-send: OUT OF SCOPE and BLOCKED.** No auto-pilot mode exists and **no AI-initiated / auto-send path exists** — nothing transitions a draft to `SENT` without an explicit human operator action (the shipped send path above is human-gated, not auto-send).
+- **External channel delivery (WhatsApp/email/SMS/etc.): NOT IMPLEMENTED (future-only).** The shipped send path writes an internal `Message` record only; there is no outbound external-delivery path.
 - **Area C (public web widget ingest): OUT OF SCOPE** unless separately audited and approved.
 
 Do **not** describe the product as "Private Alpha ready" or "real-provider AI ready" — the checkpoints show real-data readiness is conditional and not declared.
@@ -140,7 +142,7 @@ The AI runtime must **not** read customer/conversation/message content and must 
 Enforced and pinned by tests:
 
 - **No customer/conversation/message content reads** — static scope guards forbid those domain reads/imports across AI-runtime source.
-- **No send path / no auto-send** — the **B-R8** dedicated no-auto-send / human-approval lock (`__tests__/domains/ai-runtime-no-auto-send-lock.test.ts`) makes this a first-class invariant; draft metadata carries no `status`/`sent*` fields.
+- **No AI-runtime send path / no auto-send** — the **B-R8** dedicated no-auto-send / human-approval lock (`__tests__/domains/ai-runtime-no-auto-send-lock.test.ts`) makes this a first-class invariant; draft metadata carries no `status`/`sent*` fields. (The operator send path that does exist lives in the reply-drafts domain + its route handler — never in ai-runtime — and is human-gated; see **Current security/audit status**.)
 - **Audit log is metadata-only** — `ai_generation_audit_logs` has no column for raw prompt, generated text, transcript, or customer PII.
 
 `__tests__/domains/ai-runtime-cross-tenant-isolation.test.ts` (B-R7) is the hard regression suite for any AI change and must stay green. Do not introduce direct AI-send behavior, real-provider integration, or route-level generation without explicit owner approval and a dedicated PR (see **Remaining AI go-live gates**).

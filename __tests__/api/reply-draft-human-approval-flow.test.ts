@@ -11,7 +11,8 @@
 //   - approve is the ONLY handler that records explicit human approval semantics
 //     (status APPROVED, with the human reviewer's userId);
 //   - even approve does NOT itself send or create an outbound Message — sending
-//     would be a separate path that does not exist today;
+//     is a separate, explicitly-authorized handler (the send route); none of the
+//     four draft-review handlers below performs it;
 //   - no reply-draft handler imports/calls any outbound/send/channel/provider
 //     path (static scope guards), and this verification introduced no real
 //     provider, AI-runtime route wiring, B-R6 audit wiring, env read, or
@@ -293,7 +294,8 @@ describe('Human-approval flow — 4. approve is the explicit human approval boun
 
   it('marks APPROVED but does NOT itself create or send an outbound message', async () => {
     // Precise truth: approval is the human boundary; it does not send. Sending
-    // would be a separate path that does not exist in any reply-draft handler.
+    // is a separate, explicitly-authorized handler (the send route) — never the
+    // approve handler.
     const { handler } = buildApprove();
     const r = await handler(postReq(), P3);
     const body = await r.json();

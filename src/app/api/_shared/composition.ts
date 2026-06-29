@@ -117,6 +117,12 @@ function toReplyDraftRepositoryDb(
 ): ReplyDraftRepositoryDb {
   return {
     replyDraft: prisma.replyDraft,
+    // Interactive transaction for the atomic send path. Wrapped so the call is
+    // invoked as a method on the Prisma client (preserving `this`); omitted when
+    // a mock client provides none (the repo then fails the send closed).
+    $transaction: prisma.$transaction
+      ? (fn) => prisma.$transaction!(fn)
+      : undefined,
   };
 }
 

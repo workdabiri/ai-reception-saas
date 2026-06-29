@@ -49,7 +49,7 @@ The following are **in** Private Alpha. Anything not listed here or in PRD-v1.0 
 - Customer management. **\[Verified — repo: `Customer`, `CustomerContactMethod` models exist\]**  
 - Conversation management. **\[Verified — repo: `Conversation` model \+ status enum exist\]**  
 - Message management. **\[Verified — repo: `Message` model exists\]**  
-- Manual operator replies, including the **outbound message-send path** (net-new — no send path currently exists; see §16 / Area C). **\[Verified — repo: no `sendDraft`/outbound-create writes to send-tracking columns\]**  
+- Manual operator replies, including the **outbound message-send path** (see §16 / Area C). **\[Verified — repo (updated 2026-06-29): the human-gated operator "Send Approved Draft" path is implemented — `sendApprovedDraft` atomically writes the `ReplyDraft` send-tracking columns (`sentMessageId`/`sentAt`/`sentByUserId`) and creates an internal OUTBOUND OPERATOR `Message`. This is an internal record only; **external-channel delivery (Area C) remains net-new / not implemented**. At PRD lock time no send path existed.\]**  
 - Conversation status workflow. **\[Verified — repo: `ConversationStatus` enum present\]**  
 - **Level 1 / Manual Mode** as mandatory fallback and substrate (system must function with all AI disabled).  
 - **Level 2 / AI-Assisted draft replies** as the alpha **product target** (net-new — current drafts are SYSTEM-source stubs with no provider). **\[Verified — repo: `ReplyDraft` CRUD exists; real AI generation does not\]**  

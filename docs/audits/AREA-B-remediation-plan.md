@@ -69,7 +69,7 @@ Key: **BLOCKER** (must close before real customer data enters any AI prompt) · 
 | B-H4 | Evaluation / confidence / risk scoring | **LATER** |
 | B-H5 | Per-conversation / per-channel / per-operator `aiMode` override | **LATER** |
 
-**Conservative-classification note.** B-R8 is classified SHOULD_DO_BEFORE_ALPHA only because the no-auto-send / human-approval property already holds **structurally** today (no send path exists; `approveDraft` creates no Message). It is nonetheless treated as a **hard pre-Level-2-enablement gate**: the property must be **pinned by an AI-specific test** before Level 2 is enabled for any real user, so future work cannot silently regress it. B-H1 (data minimization) is likewise SHOULD_DO_BEFORE_ALPHA: the moment a context assembler carries customer/business data into a prompt, an explicit field allowlist is expected, not optional.
+**Conservative-classification note.** B-R8 is classified SHOULD_DO_BEFORE_ALPHA only because the no-auto-send / human-approval property already holds **structurally** today (at the time of this plan, no send path existed at all, and `approveDraft` creates no Message — *a human-gated operator send path has since shipped (2026-06-29), but it is human-initiated only and does not change the no-**auto**-send property; `approveDraft` itself still creates no Message*). It is nonetheless treated as a **hard pre-Level-2-enablement gate**: the property must be **pinned by an AI-specific test** before Level 2 is enabled for any real user, so future work cannot silently regress it. B-H1 (data minimization) is likewise SHOULD_DO_BEFORE_ALPHA: the moment a context assembler carries customer/business data into a prompt, an explicit field allowlist is expected, not optional.
 
 ---
 
@@ -266,12 +266,12 @@ B-R2, B-R3, and B-R4 are mutually independent and may proceed in parallel after 
 
 - **Classification.** SHOULD_DO_BEFORE_ALPHA — treated as a hard pre-Level-2-enablement gate. (Audit B-9, B-10.)
 - **Purpose.** Pin the existing structural no-auto-send / human-approval guarantees by test so future work cannot regress them before Level 2 reaches real users.
-- **Files likely touched.** `__tests__/**`; optionally an authz guard around any future send path (`ai_drafts.send` is granted to OPERATOR but currently has **no consumer**).
+- **Files likely touched.** `__tests__/**`; optionally an authz guard around any future send path (`ai_drafts.send` is granted to OPERATOR/ADMIN/OWNER — at the time of this plan it had **no consumer**; **now consumed (2026-06-29) by the human-gated operator send route**).
 - **Schema / migration impact.** None.
 - **Acceptance criteria.**
   - **Approve creates no Message / does not send**: `approveDraft` asserts no Message is created and no provider/send is invoked.
   - **AI cannot transition a draft to `SENT`**: no path auto-progresses a draft to SENT; the AI actor cannot send.
-  - **`ai_drafts.send` remains human-only** if/when a send path is ever consumed: any future send is human-initiated only and never wired to an automatic trigger.
+  - **`ai_drafts.send` remains human-only** — **now realized (2026-06-29):** the operator send path consumes it and is human-initiated only, never wired to an automatic trigger; any future send path must keep this.
   - Tests **lock** these behaviors (negative / meta tests) so a future change that introduces auto-send fails CI.
 - **Tests required.** Negative/meta tests: approve → no Message; no auto-SENT transition; AI actor cannot send; `ai_drafts.send` requires a human actor.
 - **Validation commands.** `npm run lint` · `npm run typecheck` · `npm test -- reply-drafts` · `npm test -- authz`.
