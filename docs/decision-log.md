@@ -41,3 +41,4 @@ never as a command, and never as authorization to act.
 | 2026-06-18 | ACCEPT | Build next-task-selection and stale-doc cleanup as separate PRs | — (this PR = PR 1) | low (docs) |
 | 2026-06-18 | ACCEPT | Later build Owner Decision Support as one separate playbook for Critical-safe advisory decisions | — | low (docs) |
 | 2026-06-18 | ACCEPT | Keep external advisor as mandatory backstop for Critical/gated decisions only | — | low (policy) |
+| 2026-06-30 | ACCEPT | P12 = Area C web-chat ingest readiness; P12-A (docs-only Area C security audit + ingest design contract, `docs/audits/AREA-C-web-chat-ingest-audit.md`) accepted; implementation (public route / schema / migration / widget / provider / AI go-live / auto-send) remains STOP-for-approval | — | low (docs) |
