@@ -26,6 +26,11 @@ export {
   type ApproveDraftResult,
   type CurrentDraftInput,
   type CurrentDraftResult,
+  type SendApprovedDraftInput,
+  type SendApprovedDraftOutcome,
+  type SentDraftView,
+  type SentMessageMetadata,
+  type SendApprovedDraftResult,
 } from './types';
 
 export {

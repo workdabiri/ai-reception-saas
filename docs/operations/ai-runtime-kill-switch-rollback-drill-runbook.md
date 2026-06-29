@@ -240,7 +240,7 @@ Owner sign-off:
 | Generate returns a draft while `aiMode = MANUAL` | Kill switch not applied / wrong business targeted | **Stop and record.** Confirm the `aiMode` value and target `businessId`; do not proceed |
 | Generate returns `AI_DISABLED` while expecting the stub | `aiMode` not `AI_ASSISTED`, or resolver fail-closed (missing/invalid state) | Confirm the recorded `aiMode`; this is the safe default — investigate before re-enabling |
 | Unsure whether a draft was created | Read path access missing | Use the approved read mechanism to confirm draft non-creation; record IDs only |
-| Existing draft appears "sent" | Out of scope — no send path exists | **Stop and escalate.** No auto-send path should exist (B-R8) |
+| A draft is `SENT` with **no operator action** (no `ai_drafts.send` actor / no human send) | Would indicate an unexpected **auto-send** (B-R8 violation) | **Stop and escalate.** A draft `SENT` via the human-gated operator "Send Approved Draft" action is expected; only an *auto*-send (no human actor) must never happen (B-R8). |
 
 ---
 

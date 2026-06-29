@@ -484,9 +484,9 @@ ai-reception-saas/
 | Aspect | Detail |
 |---|---|
 | What exists | `SENT` status in ReplyDraftStatus enum, `sentMessageId`, `sentAt`, `sentByUserId` fields in schema, `ai_drafts.send` permission |
-| What is missing | No `sendDraft` repository method. No API endpoint to send an approved draft as a message. Send tracking columns exist but no code writes to them. |
+| What is missing | ~~No `sendDraft` repository method. No API endpoint to send an approved draft as a message. Send tracking columns exist but no code writes to them.~~ **RESOLVED 2026-06-29:** the human-gated operator "Send Approved Draft" path is implemented — a `sendApprovedDraft` repository method + `POST .../reply-drafts/:draftId/send` route atomically write the send-tracking columns and create one internal OUTBOUND OPERATOR `Message`. External-channel delivery is still not implemented. |
 | Key files | `prisma/schema.prisma` L425-427, `src/domains/reply-drafts/types.ts` |
-| Evidence | Schema fields present but no implementation |
+| Evidence | ~~Schema fields present but no implementation~~ **Now implemented (2026-06-29); current status reference: `docs/audits/AREA-B-closure-checkpoint.md`.** |
 | Risk level | Medium |
 | Recommended next step | Implement `sendDraft` that creates a Message from the approved draft text |
 | Recommended model | Opus 4.8 |

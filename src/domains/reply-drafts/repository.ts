@@ -21,6 +21,10 @@ import type {
   ApproveDraftResult,
   CurrentDraftInput,
   CurrentDraftResult,
+  SendApprovedDraftInput,
+  SendApprovedDraftResult,
+  SentDraftView,
+  SentMessageMetadata,
 } from './types';
 import { ACTIVE_DRAFT_STATUSES } from './types';
 
@@ -58,6 +62,12 @@ export interface ReplyDraftRecord {
   reviewedAt: Date | null;
   createdAt: Date;
   updatedAt: Date;
+  // Send fields — populated by Prisma for all scalar reads, but optional here so
+  // existing record literals (mocks/tests) that predate the send lifecycle still
+  // typecheck. Only the send path reads them.
+  sentMessageId?: string | null;
+  sentAt?: Date | null;
+  sentByUserId?: string | null;
 }
 
 // ---------------------------------------------------------------------------
@@ -124,6 +134,76 @@ export interface ReplyDraftRepositoryDb {
           };
     }): Promise<ReplyDraftRecord>;
   };
+  /**
+   * Interactive transaction used by the atomic send path. The claim, the
+   * outbound-message insert, and the sentMessageId attach all run on the SAME
+   * `tx` so they commit together or roll back together — there is no window in
+   * which a draft is SENT without a linked message.
+   *
+   * Optional so existing repository-DB mocks (which never exercise send) remain
+   * valid; the real Prisma client always provides `$transaction`.
+   */
+  $transaction?<T>(fn: (tx: ReplyDraftSendTxClient) => Promise<T>): Promise<T>;
+}
+
+/**
+ * Minimal transaction-client surface the atomic send needs. `message.create` is
+ * the conversations-owned Message table: it is written here ONLY inside the send
+ * transaction (a pure internal DB insert — never an external channel/provider)
+ * so the claim and the message commit atomically. Audit + the higher-level
+ * message contract stay in the caller (handler), which re-emits message.created.
+ */
+export interface ReplyDraftSendTxClient {
+  replyDraft: {
+    findUnique(args: {
+      where: { id: string };
+    }): Promise<ReplyDraftRecord | null>;
+    updateMany(args: {
+      where: {
+        id: string;
+        businessId: string;
+        conversationId: string;
+        status: ReplyDraftStatusValue;
+      };
+      data: {
+        status: ReplyDraftStatusValue;
+        sentByUserId: string | null;
+        sentAt: Date | null;
+      };
+    }): Promise<{ count: number }>;
+    update(args: {
+      where: { id: string };
+      data: { sentMessageId: string };
+    }): Promise<ReplyDraftRecord>;
+  };
+  message: {
+    create(args: {
+      data: {
+        conversationId: string;
+        businessId: string;
+        direction: 'OUTBOUND';
+        senderType: 'OPERATOR';
+        senderUserId: string | null;
+        senderCustomerId: string | null;
+        content: string;
+        contentType: string;
+      };
+    }): Promise<SentMessageRecord>;
+  };
+}
+
+/** Message row fields the send transaction reads back after insert. */
+export interface SentMessageRecord {
+  id: string;
+  conversationId: string;
+  businessId: string;
+  direction: string;
+  senderType: string;
+  senderUserId: string | null;
+  senderCustomerId: string | null;
+  content: string;
+  contentType: string;
+  createdAt: Date;
 }
 
 // ---------------------------------------------------------------------------
@@ -234,6 +314,27 @@ export interface ReplyDraftRepository {
     businessId: string,
     conversationId: string,
   ): Promise<ActionResult<number>>;
+
+  /**
+   * Atomically send an APPROVED draft. In ONE transaction this:
+   *   1. status-guarded claims APPROVED → SENT (stamping sentByUserId/sentAt),
+   *   2. inserts the outbound OPERATOR message carrying the draft text,
+   *   3. attaches the new message id to the draft (sentMessageId).
+   * All three commit together — a crash at any point rolls everything back, so a
+   * draft is never left SENT without a linked message.
+   *
+   * - APPROVED → `{ outcome: 'SENT_NOW', draft, message }`.
+   * - Already SENT (or lost the concurrent claim) → `{ outcome: 'ALREADY_SENT',
+   *   message: null }` (idempotent — NO second message is created).
+   * - Not found / wrong tenant scope → DRAFT_NOT_FOUND.
+   * - PENDING_REVIEW / EDITED / DISCARDED (or empty draft text) → DRAFT_NOT_SENDABLE.
+   *
+   * The message insert is a pure internal DB write — it never calls any external
+   * channel/provider/network.
+   */
+  sendApprovedDraft(
+    input: SendApprovedDraftInput,
+  ): Promise<ActionResult<SendApprovedDraftResult>>;
 }
 
 // ---------------------------------------------------------------------------
@@ -250,6 +351,23 @@ const PREVIEW_MAX_LENGTH = 120;
 function truncatePreview(text: string): string {
   if (text.length <= PREVIEW_MAX_LENGTH) return text;
   return text.slice(0, PREVIEW_MAX_LENGTH).trimEnd() + '…';
+}
+
+/** Maps a draft record to the send-operation view (preview only, never full text) */
+function toSentView(record: ReplyDraftRecord): SentDraftView {
+  return {
+    id: record.id,
+    conversationId: record.conversationId,
+    status: record.status,
+    source: record.source,
+    draftTextPreview: truncatePreview(record.draftText),
+    reviewedAt: record.reviewedAt?.toISOString() ?? null,
+    reviewedByUserId: record.reviewedByUserId,
+    sentMessageId: record.sentMessageId ?? null,
+    sentAt: record.sentAt?.toISOString() ?? null,
+    sentByUserId: record.sentByUserId ?? null,
+    updatedAt: record.updatedAt.toISOString(),
+  };
 }
 
 /** Maps a dashboard record to a dashboard DTO */
@@ -659,6 +777,144 @@ export function createReplyDraftRepository(
         });
         return ok(count);
       } catch {
+        return err(REPO_ERROR_CODE, REPO_ERROR_MSG);
+      }
+    },
+
+    async sendApprovedDraft(input) {
+      // The atomic send requires an interactive transaction. The real Prisma
+      // client always provides one; a mock that omits it fails closed here.
+      const runInTransaction = db.$transaction;
+      if (!runInTransaction) {
+        return err(REPO_ERROR_CODE, REPO_ERROR_MSG);
+      }
+
+      // Discriminated transaction result — classification happens inside the tx
+      // (consistent snapshot); the ActionResult is built after it commits.
+      type TxResult =
+        | { kind: 'SENT_NOW'; draft: SentDraftView; message: SentMessageMetadata }
+        | { kind: 'ALREADY_SENT'; draft: SentDraftView }
+        | { kind: 'NOT_FOUND' }
+        | { kind: 'NOT_SENDABLE' };
+
+      try {
+        const result = await runInTransaction<TxResult>(async (tx) => {
+          const existing = await tx.replyDraft.findUnique({
+            where: { id: input.draftId },
+          });
+
+          // Scope guard: must belong to this business + conversation.
+          if (
+            !existing ||
+            existing.businessId !== input.businessId ||
+            existing.conversationId !== input.conversationId
+          ) {
+            return { kind: 'NOT_FOUND' };
+          }
+
+          // Already sent → idempotent (no new message).
+          if (existing.status === 'SENT') {
+            return { kind: 'ALREADY_SENT', draft: toSentView(existing) };
+          }
+
+          // Only an APPROVED draft can be sent.
+          if (existing.status !== 'APPROVED') {
+            return { kind: 'NOT_SENDABLE' };
+          }
+
+          // Defensive: never send an empty message (mirrors message validation).
+          const content = existing.draftText;
+          if (!content || content.trim().length === 0) {
+            return { kind: 'NOT_SENDABLE' };
+          }
+
+          // Status-guarded claim. Under the row lock taken here, a concurrent
+          // sender's identical claim re-evaluates against committed data and
+          // matches 0 rows — so only one transaction proceeds to create a
+          // message (no duplicates on double-click).
+          const now = new Date();
+          const claim = await tx.replyDraft.updateMany({
+            where: {
+              id: input.draftId,
+              businessId: input.businessId,
+              conversationId: input.conversationId,
+              status: 'APPROVED',
+            },
+            data: {
+              status: 'SENT',
+              sentByUserId: input.sentByUserId,
+              sentAt: now,
+            },
+          });
+
+          if (claim.count === 0) {
+            // A concurrent transaction won the claim. Re-read for idempotency.
+            const after = await tx.replyDraft.findUnique({
+              where: { id: input.draftId },
+            });
+            if (after && after.status === 'SENT') {
+              return { kind: 'ALREADY_SENT', draft: toSentView(after) };
+            }
+            return { kind: 'NOT_SENDABLE' };
+          }
+
+          // Create the outbound operator message in the SAME transaction. A
+          // crash/throw here rolls back the claim above → the draft returns to
+          // APPROVED with no message (no "SENT + sentMessageId null" orphan).
+          const message = await tx.message.create({
+            data: {
+              conversationId: input.conversationId,
+              businessId: input.businessId,
+              direction: 'OUTBOUND',
+              senderType: 'OPERATOR',
+              senderUserId: input.sentByUserId,
+              senderCustomerId: null,
+              content,
+              contentType: 'text/plain',
+            },
+          });
+
+          // Link the message to the draft (still inside the transaction).
+          const updated = await tx.replyDraft.update({
+            where: { id: input.draftId },
+            data: { sentMessageId: message.id },
+          });
+
+          return {
+            kind: 'SENT_NOW',
+            draft: toSentView(updated),
+            message: {
+              id: message.id,
+              conversationId: message.conversationId,
+              direction: message.direction,
+              senderType: message.senderType,
+              senderUserId: message.senderUserId,
+              createdAt: message.createdAt.toISOString(),
+            },
+          };
+        });
+
+        if (result.kind === 'NOT_FOUND') {
+          return err('DRAFT_NOT_FOUND', 'Draft not found');
+        }
+        if (result.kind === 'NOT_SENDABLE') {
+          return err('DRAFT_NOT_SENDABLE', 'Only an approved draft can be sent');
+        }
+        if (result.kind === 'ALREADY_SENT') {
+          return ok({
+            outcome: 'ALREADY_SENT',
+            draft: result.draft,
+            message: null,
+          });
+        }
+        return ok({
+          outcome: 'SENT_NOW',
+          draft: result.draft,
+          message: result.message,
+        });
+      } catch {
+        // Any failure (incl. a mid-transaction crash) rolls the transaction
+        // back; the draft is left untouched (APPROVED), never a SENT orphan.
         return err(REPO_ERROR_CODE, REPO_ERROR_MSG);
       }
     },

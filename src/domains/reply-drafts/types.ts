@@ -220,3 +220,73 @@ export interface CurrentDraftResult {
   } | null;
 }
 
+// ---------------------------------------------------------------------------
+// Send types
+//
+// Sending an APPROVED draft is an explicit, human-triggered operator action
+// (permission: ai_drafts.send). It transitions APPROVED → SENT and links the
+// draft to the outbound Message that the operator's reply created. It is NOT
+// auto-send: nothing transitions to SENT without an operator request, and the
+// outbound Message is an internal DB record only — no external channel/provider.
+//
+// The transition is performed as ONE atomic DB transaction:
+//   (status-guarded claim APPROVED → SENT) + (outbound Message insert) +
+//   (attach sentMessageId)
+// commit together or not at all. This makes "SENT with sentMessageId = null"
+// structurally impossible (a crash mid-send rolls the whole thing back, leaving
+// the draft APPROVED and no message), while the status-guarded claim still
+// prevents duplicate messages under concurrent/double-click requests.
+// ---------------------------------------------------------------------------
+
+/** Input for atomically sending an APPROVED draft. */
+export interface SendApprovedDraftInput {
+  businessId: string;
+  conversationId: string;
+  draftId: string;
+  /** The authenticated operator performing the send. */
+  sentByUserId: string;
+}
+
+/**
+ * Outcome of an atomic send:
+ * - SENT_NOW: this call transitioned APPROVED → SENT and created the message.
+ * - ALREADY_SENT: the draft was already SENT (idempotent — no new message).
+ */
+export type SendApprovedDraftOutcome = 'SENT_NOW' | 'ALREADY_SENT';
+
+/** Draft view returned by send operations (preview only — never the full text). */
+export interface SentDraftView {
+  id: string;
+  conversationId: string;
+  status: ReplyDraftStatusValue;
+  source: ReplyDraftSourceValue;
+  draftTextPreview: string;
+  reviewedAt: string | null;
+  reviewedByUserId: string | null;
+  sentMessageId: string | null;
+  sentAt: string | null;
+  sentByUserId: string | null;
+  updatedAt: string;
+}
+
+/** Metadata of the outbound message linked to a sent draft (no content). */
+export interface SentMessageMetadata {
+  id: string;
+  conversationId: string;
+  direction: string;
+  senderType: string;
+  senderUserId: string | null;
+  createdAt: string;
+}
+
+/** Result of an atomic send. */
+export interface SendApprovedDraftResult {
+  outcome: SendApprovedDraftOutcome;
+  draft: SentDraftView;
+  /**
+   * The created outbound message metadata — present when outcome is SENT_NOW;
+   * null when ALREADY_SENT (the caller looks up the linked message by id).
+   */
+  message: SentMessageMetadata | null;
+}
+
