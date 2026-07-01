@@ -68,6 +68,12 @@ export const SENSITIVE_PERMISSIONS: readonly AuthzPermission[] = [
   'knowledge.verify',
   'knowledge.archive',
   'settings.update',
+  // Channels (Area C, P12-B): managing widget keys + origin allowlists creates/
+  // rotates/revokes credentials and changes a security boundary — audit-required.
+  // `channels.read` is intentionally NOT sensitive for alpha (its read DTO
+  // exposes no secret/hash material; convention is that plain `.read` is not
+  // audited).
+  'channels.manage',
 ];
 
 // ---------------------------------------------------------------------------

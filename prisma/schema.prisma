@@ -180,6 +180,18 @@ enum AiGenerationStatus {
   FAILED
 }
 
+// Channels Domain — web-chat channel binding lifecycle (Area C, P12-B).
+//
+// Lifecycle of a public web-chat widget binding:
+//   ACTIVE  = the binding resolves; its widget key may identify the business.
+//   REVOKED = TERMINAL; a revoked binding never resolves again (fail closed).
+// There is no auto-send / delivery semantics here — this enum models config
+// lifecycle only.
+enum WebChatChannelBindingStatus {
+  ACTIVE
+  REVOKED
+}
+
 // ===========================================================================
 // Models — Identity Domain
 // ===========================================================================
@@ -252,6 +264,7 @@ model Business {
   replyDrafts            ReplyDraft[]
   businessContextItems   BusinessContextItem[]
   aiGenerationAuditLogs  AiGenerationAuditLog[]
+  webChatChannelBindings WebChatChannelBinding[]
 
   @@index([status])
   @@index([createdByUserId])
@@ -598,4 +611,56 @@ model AiGenerationAuditLog {
   @@index([businessId, conversationId])
   @@index([replyDraftId])
   @@map("ai_generation_audit_logs")
+}
+
+// ===========================================================================
+// Models — Channels Domain (Area C, P12-B)
+// ===========================================================================
+
+// Tenant-scoped public web-chat channel binding (Area C, P12-B). A binding maps
+// a public, opaque widget key to exactly one business so an embeddable web-chat
+// widget can later identify which tenant an anonymous visitor is contacting.
+//
+// SECURITY INVARIANTS (P12-B §3):
+//  - Plaintext widget key is NEVER stored. Only a keyed hash (HMAC-SHA-256 /
+//    server-side peppered hash) is persisted in `widgetKeyHash`; the raw key is
+//    shown exactly once at creation/rotation and never read back.
+//  - `widgetKeyLast4` is a display-safe preview only — never the full key/hash.
+//  - Rotation is IMMEDIATE: rotating replaces the stored hash so the old key is
+//    invalid at once. There is deliberately NO previous-key column and NO grace
+//    window in alpha.
+//  - `status = REVOKED` is TERMINAL; a revoked binding must never resolve.
+//  - `allowedOrigins` holds origin-only, normalized values (alpha: no join
+//    table, no wildcards).
+//
+// This model stores binding/config data ONLY. It persists no customer /
+// conversation / message content (Channels README anti-pattern), calls no
+// provider, and has no send/delivery path.
+model WebChatChannelBinding {
+  id              String                      @id @default(uuid()) @db.Uuid
+  businessId      String                      @map("business_id") @db.Uuid
+  label           String
+  status          WebChatChannelBindingStatus @default(ACTIVE)
+  // Widget key: KEYED HASH ONLY. Plaintext is never persisted; the raw key is
+  // shown exactly once at creation/rotation. No previous-key column exists —
+  // rotation is immediate (no grace window).
+  widgetKeyHash   String                      @map("widget_key_hash")
+  widgetKeyLast4  String                      @map("widget_key_last4")
+  keyRotatedAt    DateTime?                   @map("key_rotated_at")
+  // Origin allowlist (alpha): denormalized origin-only array — no join table.
+  allowedOrigins  String[]                    @map("allowed_origins")
+  // Revocation (terminal): REVOKED bindings never resolve.
+  revokedAt       DateTime?                   @map("revoked_at")
+  revokedByUserId String?                     @map("revoked_by_user_id") @db.Uuid
+  createdByUserId String?                     @map("created_by_user_id") @db.Uuid
+  createdAt       DateTime                    @default(now()) @map("created_at")
+  updatedAt       DateTime                    @updatedAt @map("updated_at")
+
+  business Business @relation(fields: [businessId], references: [id])
+
+  @@unique([id, businessId])
+  @@unique([widgetKeyHash])
+  @@index([businessId])
+  @@index([businessId, status])
+  @@map("web_chat_channel_bindings")
 }

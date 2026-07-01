@@ -41,6 +41,10 @@ import {
   createKnowledgeRepository,
   type KnowledgeRepositoryDb,
 } from '@/domains/knowledge/repository';
+import {
+  createChannelsRepository,
+  type ChannelsRepositoryDb,
+} from '@/domains/channels/repository';
 
 import { createIdentityService } from '@/domains/identity/implementation';
 import { createTenancyService } from '@/domains/tenancy/implementation';
@@ -50,7 +54,13 @@ import { createCrmService } from '@/domains/crm/implementation';
 import { createConversationService } from '@/domains/conversations/implementation';
 import { createAiConfigService } from '@/domains/ai-config/implementation';
 import { createKnowledgeService } from '@/domains/knowledge/implementation';
+import { createChannelsService } from '@/domains/channels/implementation';
 import { createAiRuntimeService } from '@/domains/ai-runtime/context-assembler';
+
+import {
+  createDefaultWidgetKeyGenerator,
+  createDefaultWidgetKeyHasher,
+} from '@/lib/security/widget-key';
 
 import type {
   ApiDependencies,
@@ -144,6 +154,15 @@ function toKnowledgeRepositoryDb(
   };
 }
 
+/** Extracts only the delegates required by ChannelsRepositoryDb */
+function toChannelsRepositoryDb(
+  prisma: PrismaCompatibleClient,
+): ChannelsRepositoryDb {
+  return {
+    webChatChannelBinding: prisma.webChatChannelBinding,
+  };
+}
+
 // ---------------------------------------------------------------------------
 // Factory
 // ---------------------------------------------------------------------------
@@ -200,6 +219,10 @@ export function createApiDependencies(
     toKnowledgeRepositoryDb(prisma),
   );
 
+  const channelsRepository = createChannelsRepository(
+    toChannelsRepositoryDb(prisma),
+  );
+
   // Wire services
   const identityService = createIdentityService({
     repository: identityRepository,
@@ -224,6 +247,15 @@ export function createApiDependencies(
   const knowledgeService = createKnowledgeService({
     repository: knowledgeRepository,
   });
+  // Channels (Area C, P12-B): tenant-scoped web-chat binding store. Crypto deps
+  // are injected (no env/secret read at module load); the default hasher fails
+  // closed when the pepper is unconfigured. No route invokes this in this PR.
+  const channelsService = createChannelsService({
+    repository: channelsRepository,
+    audit: auditService,
+    keyGenerator: createDefaultWidgetKeyGenerator(),
+    hasher: createDefaultWidgetKeyHasher(),
+  });
   // AI runtime composes existing services (AI policy + verified knowledge); it
   // has no repository/Prisma surface of its own (B-R3).
   const aiRuntimeService = createAiRuntimeService({
@@ -241,6 +273,7 @@ export function createApiDependencies(
       replyDrafts: replyDraftRepository,
       aiConfig: aiConfigRepository,
       knowledge: knowledgeRepository,
+      channels: channelsRepository,
     },
     services: {
       identity: identityService,
@@ -251,6 +284,7 @@ export function createApiDependencies(
       conversations: conversationService,
       aiConfig: aiConfigService,
       knowledge: knowledgeService,
+      channels: channelsService,
       aiRuntime: aiRuntimeService,
     },
   };

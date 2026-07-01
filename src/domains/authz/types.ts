@@ -34,6 +34,8 @@ export const AUTHZ_PERMISSION_VALUES = [
   'audit.read',
   'settings.read',
   'settings.update',
+  'channels.read',
+  'channels.manage',
 ] as const;
 
 /** A known permission string */

@@ -350,6 +350,42 @@ function createMockPrisma(): PrismaCompatibleClient {
           updatedAt: new Date(),
         }),
     },
+    webChatChannelBinding: {
+      create: () =>
+        Promise.resolve({
+          id: 'mock',
+          businessId: 'mock',
+          label: 'Mock widget',
+          status: 'ACTIVE' as const,
+          widgetKeyHash: 'mock-hash',
+          widgetKeyLast4: 'abcd',
+          keyRotatedAt: null,
+          allowedOrigins: [],
+          revokedAt: null,
+          revokedByUserId: null,
+          createdByUserId: null,
+          createdAt: new Date(),
+          updatedAt: new Date(),
+        }),
+      findUnique: () => Promise.resolve(null),
+      findMany: () => Promise.resolve([]),
+      update: () =>
+        Promise.resolve({
+          id: 'mock',
+          businessId: 'mock',
+          label: 'Mock widget',
+          status: 'REVOKED' as const,
+          widgetKeyHash: 'mock-hash',
+          widgetKeyLast4: 'abcd',
+          keyRotatedAt: null,
+          allowedOrigins: [],
+          revokedAt: new Date(),
+          revokedByUserId: 'mock-user',
+          createdByUserId: null,
+          createdAt: new Date(),
+          updatedAt: new Date(),
+        }),
+    },
   };
 }
 
@@ -374,6 +410,7 @@ describe('createApiDependencies', () => {
         expect(deps.repositories.replyDrafts).toBeDefined();
         expect(deps.repositories.aiConfig).toBeDefined();
         expect(deps.repositories.knowledge).toBeDefined();
+        expect(deps.repositories.channels).toBeDefined();
 
         // Services
         expect(deps.services.identity).toBeDefined();
@@ -384,6 +421,7 @@ describe('createApiDependencies', () => {
         expect(deps.services.conversations).toBeDefined();
         expect(deps.services.aiConfig).toBeDefined();
         expect(deps.services.knowledge).toBeDefined();
+        expect(deps.services.channels).toBeDefined();
         expect(deps.services.aiRuntime).toBeDefined();
       },
     );
@@ -452,6 +490,24 @@ describe('createApiDependencies', () => {
         expect(typeof deps.repositories.knowledge.archiveItem).toBe(
           'function',
         );
+
+        // Channels repository methods (Area C, P12-B)
+        expect(typeof deps.repositories.channels.createBinding).toBe(
+          'function',
+        );
+        expect(typeof deps.repositories.channels.listBindings).toBe(
+          'function',
+        );
+        expect(typeof deps.repositories.channels.findBindingById).toBe(
+          'function',
+        );
+        expect(typeof deps.repositories.channels.resolveActiveByKeyHash).toBe(
+          'function',
+        );
+        expect(typeof deps.repositories.channels.rotateKey).toBe('function');
+        expect(typeof deps.repositories.channels.revokeBinding).toBe(
+          'function',
+        );
       },
     );
   });
@@ -504,6 +560,23 @@ describe('createApiDependencies', () => {
         );
         expect(typeof deps.services.knowledge.verifyItem).toBe('function');
         expect(typeof deps.services.knowledge.archiveItem).toBe('function');
+
+        // Channels service methods (Area C, P12-B)
+        expect(typeof deps.services.channels.createWebChatBinding).toBe(
+          'function',
+        );
+        expect(typeof deps.services.channels.listWebChatBindings).toBe(
+          'function',
+        );
+        expect(typeof deps.services.channels.findWebChatBinding).toBe(
+          'function',
+        );
+        expect(typeof deps.services.channels.rotateWebChatBindingKey).toBe(
+          'function',
+        );
+        expect(typeof deps.services.channels.revokeWebChatBinding).toBe(
+          'function',
+        );
 
         // AI runtime / context assembler service methods (B-R3)
         expect(typeof deps.services.aiRuntime.assembleAiContext).toBe(

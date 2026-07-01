@@ -13,6 +13,7 @@ import type { ConversationRepository } from '@/domains/conversations/repository'
 import type { ReplyDraftRepository } from '@/domains/reply-drafts/repository';
 import type { AiConfigRepository } from '@/domains/ai-config/repository';
 import type { KnowledgeRepository } from '@/domains/knowledge/repository';
+import type { ChannelsRepository } from '@/domains/channels/repository';
 
 import type { IdentityService } from '@/domains/identity/service';
 import type { TenancyService } from '@/domains/tenancy/service';
@@ -22,6 +23,7 @@ import type { CrmService } from '@/domains/crm/service';
 import type { ConversationService } from '@/domains/conversations/service';
 import type { AiConfigService } from '@/domains/ai-config/service';
 import type { KnowledgeService } from '@/domains/knowledge/service';
+import type { ChannelsService } from '@/domains/channels/service';
 import type { AiRuntimeService } from '@/domains/ai-runtime/service';
 
 import type { IdentityRepositoryDb } from '@/domains/identity/repository';
@@ -32,6 +34,7 @@ import type { ConversationRepositoryDb } from '@/domains/conversations/repositor
 import type { ReplyDraftRepositoryDb } from '@/domains/reply-drafts/repository';
 import type { AiConfigRepositoryDb } from '@/domains/ai-config/repository';
 import type { KnowledgeRepositoryDb } from '@/domains/knowledge/repository';
+import type { ChannelsRepositoryDb } from '@/domains/channels/repository';
 
 // ---------------------------------------------------------------------------
 // Container types
@@ -47,6 +50,7 @@ export interface ApiRepositories {
   readonly replyDrafts: ReplyDraftRepository;
   readonly aiConfig: AiConfigRepository;
   readonly knowledge: KnowledgeRepository;
+  readonly channels: ChannelsRepository;
 }
 
 /** All services available to API handlers */
@@ -59,6 +63,7 @@ export interface ApiServices {
   readonly conversations: ConversationService;
   readonly aiConfig: AiConfigService;
   readonly knowledge: KnowledgeService;
+  readonly channels: ChannelsService;
   readonly aiRuntime: AiRuntimeService;
 }
 
@@ -89,7 +94,8 @@ export type PrismaCompatibleClient = IdentityRepositoryDb &
   ConversationRepositoryDb &
   ReplyDraftRepositoryDb &
   AiConfigRepositoryDb &
-  KnowledgeRepositoryDb;
+  KnowledgeRepositoryDb &
+  ChannelsRepositoryDb;
 
 /** Options for creating the API dependency container */
 export interface ApiCompositionOptions {
